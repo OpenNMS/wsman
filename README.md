@@ -34,8 +34,6 @@ Retrieving all of the service details from a Windows 2008 Server:
 java -jar $WSMAN_CLI_JAR -w WSMAN_1_0 -r http://win2k8:5985 -u Administrator -p PASsW0rdz -resourceUri http://schemas.microsoft.com/wbem/wsman/1/wmi/root/cimv2/Win32_Service
 ```
 
-```
-
 #### Enumeration with WQL filter
 
 Retrieving details from the active power supply on an iDrac 6 card
