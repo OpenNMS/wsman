@@ -1,0 +1,66 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.opennms.core</groupId>
+  <artifactId>org.opennms.core.wsman</artifactId>
+  <packaging>pom</packaging>
+  <version>1.0-SNAPSHOT</version>
+  <name>OpenNMS :: Core :: WS-Man</name>
+
+  <modules>
+    <!-- Core -->
+    <module>api</module>
+    <module>cli</module>
+    <module>itests</module>
+
+    <!-- Implementations -->
+    <module>cxf</module>
+    <module>openwsman</module>
+  </modules>
+
+  <properties>
+    <javaVersion>1.8</javaVersion>
+    <cxfVersion>3.1.4</cxfVersion>
+    <slf4jVersion>1.7.7</slf4jVersion>
+    <guavaVersion>17.0</guavaVersion>
+    <args4jVersion>2.32</args4jVersion>
+    <xmltoolVersion>4.4.ga</xmltoolVersion>
+    <log4jVersion>2.5</log4jVersion>
+    <junitVersion>4.12</junitVersion>
+    <wiremockVersion>1.57</wiremockVersion>
+  </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.3</version>
+        <configuration>
+          <source>${javaVersion}</source>
+          <target>${javaVersion}</target>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <version>3.0.1</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>2.19</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>2.6</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>2.4.2</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

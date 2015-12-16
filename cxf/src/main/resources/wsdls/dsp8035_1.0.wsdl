@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+DMTF - Distributed Management Task Force, Inc. - http://www.dmtf.org
+
+Document number: DSP8035
+Date: 2010-02-19
+Version: 1.0.0
+Document status: DMTF Standard
+
+Title: WS-Management Resource Access Operations WSDL
+
+Document type: Specification (W3C WSDL Document)
+Document language: E
+
+Abstract: WSDL for WS-Management Resource Access Operations.
+
+Contact group: DMTF WS-Management Work Group, wsman-chair@dmtf.org
+
+Copyright (C) 2008,2009, 2010 Distributed Management Task Force, Inc. (DMTF).
+All rights reserved.  DMTF is a not-for-profit association of industry
+members dedicated to promoting enterprise and systems management and
+interoperability.  Members and non-members may reproduce DMTF
+specifications and documents 
+provided that correct attribution is given.  As DMTF specifications may
+be revised from time to time, the particular version and release date
+should always be noted.  Implementation of certain elements of this
+standard or proposed standard may be subject to third party patent
+rights, including provisional patent rights (herein "patent rights").
+DMTF makes no representations to users of the standard as to the
+existence of such rights, and is not responsible to recognize, disclose,
+or identify any or all such third party patent right, owners or
+claimants, nor for any incomplete or inaccurate identification or
+disclosure of such rights, owners or claimants.  DMTF shall have no
+liability to any party, in any manner or circumstance, under any legal
+theory whatsoever, for failure to recognize, disclose, or identify any
+such third party patent rights, or for such party's reliance on the
+standard or incorporation thereof in its product, protocols or testing
+procedures.  DMTF shall have no liability to any party implementing
+such standard, whether such implementation is foreseeable or not, nor
+to any patent owner or claimant, and shall have no liability or
+responsibility for costs or losses incurred if a standard is withdrawn
+or modified after publication, and shall be indemnified and held
+harmless by any party implementing the standard from any and all claims
+of infringement by a patent owner for such implementations.  For
+information about patents held by third-parties which have notified the
+DMTF that, in their opinion, such patent may relate to or impact
+implementations of DMTF standards, visit
+http://www.dmtf.org/about/policies/disclosures.php.
+
+Change log:
+1.0.0 - 2009-11-01 - Work in progress release
+1.0.0 - 2010-02-19 - DMTF Standard release
+  -->
+<wsdl:definitions 
+    targetNamespace="http://schemas.xmlsoap.org/ws/2004/09/transfer" 
+    xmlns:tns="http://schemas.xmlsoap.org/ws/2004/09/transfer" 
+    xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" 
+	  xmlns:wsam="http://www.w3.org/2007/05/addressing/metadata"
+    xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" 
+    xmlns:xs="http://www.w3.org/2001/XMLSchema">
+ 
+  <wsdl:types>
+    <xs:schema>
+      <xs:import 
+        namespace="http://schemas.xmlsoap.org/ws/2004/09/transfer"
+        schemaLocation="http://schemas.dmtf.org/wbem/wsman/1/dsp8031_1.0.xsd"
+        />
+    </xs:schema>
+  </wsdl:types>
+
+  <!--
+  In some of the messages defined below a "tns:TransferElement"
+  is expected to be inserted before the WSDL is processed by any tooling.
+  Thus the WSDL as presented is not usable until after this substitution
+  is done.
+  -->
+ 
+  <wsdl:message name="EmptyMessage"/>
+  <wsdl:message name="CreateRequestMessage">
+    <wsdl:part name="Body" element="tns:TransferElement"/>
+  </wsdl:message>
+  <wsdl:message name="CreateResponseMessage">
+    <wsdl:part name="Body" element="tns:ResourceCreated"/>
+  </wsdl:message>
+  <wsdl:message name="GetResponseMessage">
+    <wsdl:part name="Body" element="tns:TransferElement"/>
+  </wsdl:message>
+  <wsdl:message name="PutRequestMessage">
+    <wsdl:part name="Body" element="tns:TransferElement"/>
+  </wsdl:message>
+  <wsdl:message name="PutResponseMessage">
+    <!-- Note this 'part' may be omitted -->
+    <wsdl:part name="Body" element="tns:TransferElement"/>
+  </wsdl:message>
+ 
+  <wsdl:portType name="Resource">
+    <wsdl:documentation>
+      This port type defines a resource that may be read, 
+      written, and deleted.
+    </wsdl:documentation>
+    <wsdl:operation name="Get">
+      <wsdl:input 
+        message="tns:EmptyMessage"
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/Get"
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/Get" />
+      <wsdl:output 
+        message="tns:GetResponseMessage"
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/GetResponse" 
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/GetResponse" />
+    </wsdl:operation>
+    <wsdl:operation name="Put">
+      <wsdl:input 
+        message="tns:PutRequestMessage"
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/Put" 
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/Put" />
+      <wsdl:output 
+        message="tns:PutResponseMessage"
+   wsa:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/PutResponse"
+   wsam:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/PutResponse"/>
+    </wsdl:operation>
+    <wsdl:operation name="Delete">
+      <wsdl:input 
+        message="tns:EmptyMessage"
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/Delete" 
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/Delete" />
+      <wsdl:output 
+        message="tns:EmptyMessage"
+    wsa:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/DeleteResponse"
+   wsam:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/DeleteResponse" 
+      />
+    </wsdl:operation>
+  </wsdl:portType>
+ 
+  <wsdl:portType name="ResourceFactory">
+    <wsdl:documentation>
+      This port type defines a Web service that can create new 
+      resources.
+    </wsdl:documentation>
+    <wsdl:operation name="Create">
+      <wsdl:input 
+        message="tns:CreateRequestMessage"
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/Create" 
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/Create" />
+      <wsdl:output 
+        message="tns:CreateResponseMessage"
+    wsa:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/CreateResponse"
+   wsam:Action="http://schemas.xmlsoap.org/ws/2004/09/transfer/CreateResponse"
+      />
+    </wsdl:operation>
+  </wsdl:portType>
+</wsdl:definitions>

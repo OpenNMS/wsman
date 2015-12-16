@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:n1="http://schemas.dell.com/wbem/wscim/1/cim-schema/2/DCIM_PowerSupplyView" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsen="http://schemas.xmlsoap.org/ws/2004/09/enumeration">
+   <s:Header>
+      <!-- Remove the WS-Addressing headers since we can't currently mock the RelatesTo and MessageID headers
+      <wsa:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:To>
+      <wsa:Action>http://schemas.xmlsoap.org/ws/2004/09/enumeration/PullResponse</wsa:Action>
+      <wsa:RelatesTo>uuid:f715a46e-2668-1668-8003-303180ea2ae8</wsa:RelatesTo>
+      <wsa:MessageID>uuid:c664ae53-2664-1664-8021-c115cfb5fe14</wsa:MessageID>
+      -->
+   </s:Header>
+   <s:Body>
+      <wsen:PullResponse>
+         <wsen:Items>
+            <n1:DCIM_PowerSupplyView>
+               <n1:FirmwareVersion>04.15.00</n1:FirmwareVersion>
+               <n1:InputVoltage>120</n1:InputVoltage>
+               <n1:InstanceID>PSU.Slot.1</n1:InstanceID>
+               <n1:PrimaryStatus>1</n1:PrimaryStatus>
+               <n1:RedundancyStatus>0</n1:RedundancyStatus>
+               <n1:TotalOutputPower>502</n1:TotalOutputPower>
+            </n1:DCIM_PowerSupplyView>
+         </wsen:Items>
+         <wsen:EndOfSequence />
+      </wsen:PullResponse>
+   </s:Body>
+</s:Envelope>

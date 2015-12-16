@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:wsen="http://schemas.xmlsoap.org/ws/2004/09/enumeration">
+   <s:Header>
+      <!-- Remove the WS-Addressing headers since we can't currently mock the RelatesTo and MessageID headers
+      <wsa:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:To>
+      <wsa:Action>http://schemas.xmlsoap.org/ws/2004/09/enumeration/EnumerateResponse</wsa:Action>
+      <wsa:RelatesTo>uuid:f6e752bc-2668-1668-8002-303180ea2ae8</wsa:RelatesTo>
+      <wsa:MessageID>uuid:c6610461-2664-1664-8020-c115cfb5fe14</wsa:MessageID>
+       -->
+   </s:Header>
+   <s:Body>
+      <wsen:EnumerateResponse>
+         <wsen:EnumerationContext>c6595ee1-2664-1664-801f-c115cfb5fe14</wsen:EnumerationContext>
+      </wsen:EnumerateResponse>
+   </s:Body>
+</s:Envelope>

@@ -1,0 +1,6 @@
+These WSDLs have been modified for them to compile successfully in our environment.
+Pristine copies of the .wsdls are kept in the pristine subdirectory.
+
+Changes made include:
+* Replacing 'resource-specific-GED' with 'TransferElement'
+**  sed -i 's/resource-specific-GED/tns:TransferElement/g' *.wsdl

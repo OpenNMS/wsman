@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+DMTF - Distributed Management Task Force, Inc. - http://www.dmtf.org
+
+Document number: DSP8036
+Date: 2010-02-19
+Version: 1.0.0
+Document status: DMTF Standard
+
+Title: WS-Management Notification Operations WSDL
+
+Document type: Specification (W3C WSDL Document)
+Document language: E
+
+Abstract: WSDL for WS-Management Notification Operations.
+
+Contact group: DMTF WS-Management Work Group, wsman-chair@dmtf.org
+
+Copyright (C) 2008,2009, 2010 Distributed Management Task Force, Inc. (DMTF).
+All rights reserved.  DMTF is a not-for-profit association of industry
+members dedicated to promoting enterprise and systems management and
+interoperability.  Members and non-members may reproduce DMTF
+specifications and documents 
+provided that correct attribution is given.  As DMTF specifications may
+be revised from time to time, the particular version and release date
+should always be noted.  Implementation of certain elements of this
+standard or proposed standard may be subject to third party patent
+rights, including provisional patent rights (herein "patent rights").
+DMTF makes no representations to users of the standard as to the
+existence of such rights, and is not responsible to recognize, disclose,
+or identify any or all such third party patent right, owners or
+claimants, nor for any incomplete or inaccurate identification or
+disclosure of such rights, owners or claimants.  DMTF shall have no
+liability to any party, in any manner or circumstance, under any legal
+theory whatsoever, for failure to recognize, disclose, or identify any
+such third party patent rights, or for such party's reliance on the
+standard or incorporation thereof in its product, protocols or testing
+procedures.  DMTF shall have no liability to any party implementing
+such standard, whether such implementation is foreseeable or not, nor
+to any patent owner or claimant, and shall have no liability or
+responsibility for costs or losses incurred if a standard is withdrawn
+or modified after publication, and shall be indemnified and held
+harmless by any party implementing the standard from any and all claims
+of infringement by a patent owner for such implementations.  For
+information about patents held by third-parties which have notified the
+DMTF that, in their opinion, such patent may relate to or impact
+implementations of DMTF standards, visit
+http://www.dmtf.org/about/policies/disclosures.php.
+
+Change log:
+1.0.0 - 2009-11-01 - Work in progress release
+1.0.0 - 2010-02-19 - DMTF Standard release
+  -->
+<wsdl:definitions
+  targetNamespace="http://schemas.xmlsoap.org/ws/2004/08/eventing"
+  xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" 
+  xmlns:wsam="http://www.w3.org/2007/05/addressing/metadata"
+  xmlns:wsme="http://schemas.xmlsoap.org/ws/2004/08/eventing" 
+  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" 
+  xmlns:xs="http://www.w3.org/2001/XMLSchema" >
+
+  <wsdl:types>
+    <xs:schema>
+       <xs:import
+         namespace="http://schemas.xmlsoap.org/ws/2004/08/eventing"
+         schemaLocation="http://schemas.dmtf.org/wbem/wsman/1/dsp8032_1.0.xsd" />
+    </xs:schema>
+  </wsdl:types>
+  s
+  <wsdl:message name="SubscribeMsg" >
+    <wsdl:part name="body" element="wsme:Subscribe" />
+  </wsdl:message>
+  <wsdl:message name="SubscribeResponseMsg" >
+    <wsdl:part name="body" element="wsme:SubscribeResponse" />
+  </wsdl:message>
+  
+  <wsdl:message name="RenewMsg" >
+    <wsdl:part name="body" element="wsme:Renew" />
+  </wsdl:message>
+  <wsdl:message name="RenewResponseMsg" >
+    <wsdl:part name="body" element="wsme:RenewResponse" />
+  </wsdl:message>
+  
+  <wsdl:message name="GetStatusMsg" >
+    <wsdl:part name="body" element="wsme:GetStatus" />
+  </wsdl:message>
+  <wsdl:message name="GetStatusResponseMsg" >
+    <wsdl:part name="body" element="wsme:GetStatusResponse" />
+  </wsdl:message>
+  
+  <wsdl:message name="UnsubscribeMsg" >
+    <wsdl:part name="body" element="wsme:Unsubscribe" />
+  </wsdl:message>
+  <wsdl:message name="UnsubscribeResponseMsg" />
+ 
+  <wsdl:message name="SubscriptionEnd" >
+    <wsdl:part name="body" element="wsme:SubscriptionEnd" />
+  </wsdl:message>
+  
+  <wsdl:portType name="EventSource" >
+    <wsdl:operation name="SubscribeOp" >
+      <wsdl:input 
+        message="wsme:SubscribeMsg"
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/Subscribe"
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/Subscribe"/>
+      <wsdl:output 
+        message="wsme:SubscribeResponseMsg" 
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/SubscribeResponse"
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/SubscribeResponse"/>
+    </wsdl:operation>
+  </wsdl:portType>
+
+  <!-- The following portType shall be supported by the endpoint to which
+       the SubscriptionEnd message is sent.  -->
+  <wsdl:portType name="EndToEndpoint">
+    <wsdl:operation name="SubscriptionEnd" >
+      <wsdl:input
+        message="wsme:SubscriptionEnd" 
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/SubscriptionEnd"
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/SubscriptionEnd"/>
+    </wsdl:operation>
+  </wsdl:portType>
+
+  <!-- The following portType shall be supported by the endpoint to which
+       Notifications are sent.  This portType also serves as a 
+       mechanism by which Subscribers can know the Notifications that
+       will sent by an Event Source. -->
+  <wsdl:portType name="EventSink">
+    <!-- place the Notification messages (operations) here. For example:
+    <wsdl:operation name="WeatherReport">
+    <wsdl:input message="wr:ThunderStormMessage"
+      wsa:Action="urn:weatherReport:ThunderStorm"
+      wsam:Action="urn:weatherReport:ThunderStorm" />
+  </wsdl:operation>
+  -->
+  </wsdl:portType>
+  
+  <wsdl:portType name="SubscriptionManager" >
+    <wsdl:operation name="RenewOp" >
+      <wsdl:input 
+        message="wsme:RenewMsg" 
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/Renew"
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/Renew"/>
+      <wsdl:output 
+        message="wsme:RenewResponseMsg" 
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/RenewResponse"
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/RenewResponse"/>
+    </wsdl:operation>
+    <wsdl:operation name="GetStatusOp" >
+      <wsdl:input 
+        message="wsme:GetStatusMsg"
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/GetStatus"
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/GetStatus"/>
+      <wsdl:output 
+        message="wsme:GetStatusResponseMsg" 
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/GetStatusResponse"
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/GetStatusResponse"/>
+    </wsdl:operation>
+    <wsdl:operation name="UnsubscribeOp" >
+      <wsdl:input
+        message="wsme:UnsubscribeMsg"
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/Unsubscribe"
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/Unsubscribe"/>
+      <wsdl:output 
+        message="wsme:UnsubscribeResponseMsg" 
+        wsa:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/UnsubscribeResponse"
+        wsam:Action="http://schemas.xmlsoap.org/ws/2004/08/eventing/UnsubscribeResponse"/>
+    </wsdl:operation>
+  </wsdl:portType>
+</wsdl:definitions>
