@@ -20,12 +20,20 @@ export WSMAN_CLI_JAR=cli/target/org.opennms.core.wsman.cli-1.0-SNAPSHOT.jar
 
 ### Examples
 
-#### Enumaration
+#### Enumeration
 
 Retrieving the computer system details from an iDrac 6 card
 
 ```sh
 java -jar $WSMAN_CLI_JAR -w WSMAN_1_0 -r https://idrac/wsman -u root -p calvin -resourceUri http://schemas.dell.com/wbem/wscim/1/cim-schema/2/DCIM_ComputerSystem
+```
+
+Retrieving all of the service details from a Windows 2008 Server:
+
+```sh
+java -jar $WSMAN_CLI_JAR -w WSMAN_1_0 -r http://win2k8:5985 -u Administrator -p PASsW0rdz -resourceUri http://schemas.microsoft.com/wbem/wsman/1/wmi/root/cimv2/Win32_Service
+```
+
 ```
 
 #### Enumeration with WQL filter
