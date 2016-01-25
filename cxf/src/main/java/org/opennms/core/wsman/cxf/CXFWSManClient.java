@@ -38,6 +38,7 @@ import org.apache.cxf.jaxws.JaxWsProxyFactoryBean;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.transport.http.HTTPConduit;
 import org.apache.cxf.transport.http.auth.DefaultBasicAuthSupplier;
+import org.apache.cxf.transports.http.configuration.HTTPClientPolicy;
 import org.apache.cxf.ws.addressing.AddressingProperties;
 import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
@@ -280,10 +281,20 @@ public class CXFWSManClient implements WSManClient {
         nsMap.put("wsman", WSManConstants.XML_NS_DMTF_WSMAN_V1);
         cxfClient.getRequestContext().put("soap.env.ns.map", nsMap);
 
+        // Setup timeouts
+        HTTPConduit http = (HTTPConduit)cxfClient.getConduit();
+        HTTPClientPolicy httpClientPolicy = new HTTPClientPolicy();
+        if (m_endpoint.getConnectionTimeout() != null) {
+            httpClientPolicy.setConnectionTimeout(m_endpoint.getConnectionTimeout());
+        }
+        if (m_endpoint.getReceiveTimeout() != null) {
+            httpClientPolicy.setReceiveTimeout(m_endpoint.getReceiveTimeout());
+        }
+        http.setClient(httpClientPolicy);
+
         if (!m_endpoint.isStrictSSL()) {
             LOG.debug("Disabling strict SSL checking.");
             // Accept all certificates
-            HTTPConduit http = (HTTPConduit) cxfClient.getConduit();
             TrustManager[] simpleTrustManager = new TrustManager[] { new X509TrustManager() {
                 public void checkClientTrusted(
                         java.security.cert.X509Certificate[] certs, String authType) {
@@ -304,7 +315,6 @@ public class CXFWSManClient implements WSManClient {
         // Setup authentication
         if (m_endpoint.isBasicAuth()) {
             LOG.debug("Enabling basic authentication.");
-            HTTPConduit http = (HTTPConduit) cxfClient.getConduit();
             http.setAuthSupplier(new DefaultBasicAuthSupplier());
             http.getAuthorization().setUserName(m_endpoint.getUsername());
             http.getAuthorization().setPassword(m_endpoint.getPassword());

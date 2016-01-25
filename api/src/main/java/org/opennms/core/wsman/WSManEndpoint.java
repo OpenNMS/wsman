@@ -37,6 +37,8 @@ public class WSManEndpoint {
     private final WSManVersion serverVersion;
     private final Integer maxElements;
     private final Integer maxEnvelopeSize;
+    private final Integer connectionTimeout;
+    private final Integer receiveTimeout;
 
     private WSManEndpoint(Builder builder) {
         url = builder.url;
@@ -46,6 +48,8 @@ public class WSManEndpoint {
         serverVersion = builder.serverVersion;
         maxElements = builder.maxElements;
         maxEnvelopeSize = builder.maxEnvelopeSize;
+        connectionTimeout = builder.connectionTimeout;
+        receiveTimeout = builder.receiveTimeout;
     }
 
     public static class Builder {
@@ -56,6 +60,8 @@ public class WSManEndpoint {
        private WSManVersion serverVersion = WSManVersion.WSMAN_1_2;
        private Integer maxElements;
        private Integer maxEnvelopeSize;
+       private Integer connectionTimeout;
+       private Integer receiveTimeout;
 
        public Builder(String url) throws MalformedURLException {
            this(new URL(Objects.requireNonNull(url, "url cannot be null")));
@@ -97,6 +103,22 @@ public class WSManEndpoint {
            return this;
        }
 
+       public Builder withConnectionTimeout(Integer connectionTimeout) {
+           if (connectionTimeout == null || connectionTimeout < 0) {
+               throw new IllegalArgumentException("connectionTimeout must be non-negative");
+           }
+           this.connectionTimeout = connectionTimeout;
+           return this;
+       }
+
+       public Builder withReceiveTimeout(Integer receiveTimeout) {
+           if (receiveTimeout == null || receiveTimeout < 0) {
+               throw new IllegalArgumentException("receiveTimeout must be non-negative");
+           }
+           this.receiveTimeout = receiveTimeout;
+           return this;
+       }
+
        public WSManEndpoint build() {
            return new WSManEndpoint(this);
        }
@@ -134,10 +156,19 @@ public class WSManEndpoint {
         return maxEnvelopeSize;
     }
 
+    public Integer getConnectionTimeout() {
+        return connectionTimeout;
+    }
+
+    public Integer getReceiveTimeout() {
+        return receiveTimeout;
+    }
+
     public String toString() {
         return String.format("WSManEndpoint[url='%s', isBasicAuth='%s', isStrictSSL='%s', "
-                + "serverVersion='%s',  maxElements='%s', maxEnvelopeSize='%s']",
+                + "serverVersion='%s',  maxElements='%s', maxEnvelopeSize='%s'"
+                + "connectionTimeout='%s', receiveTimeout='%s']",
                 url, isBasicAuth(), isStrictSSL(), serverVersion,
-                maxElements, maxEnvelopeSize);
+                maxElements, maxEnvelopeSize, connectionTimeout, receiveTimeout);
     }
 }
