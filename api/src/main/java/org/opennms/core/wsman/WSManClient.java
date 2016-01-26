@@ -24,10 +24,19 @@ import org.w3c.dom.Node;
  * A WS-Man client implementation that supports the following operations:
  *   * Enumerate and pull (DSP8037)
  *   * Get (DSP8035)
+ *   * Identify (DSP0226)
  *
  * @author jwhite
  */
 public interface WSManClient {
+
+    /**
+     * Discovers the capabilities and version information of the remote service.
+     *
+     * @return identify response
+     * @throw WSManException
+     */
+    public IdentifyResponse identify();
 
     /**
      * Retrieves a single element using the provided selectors.
@@ -37,13 +46,14 @@ public interface WSManClient {
      * @return the requested node, otherwise an exception is thrown
      * @throw WSManException
      */
-    Node get(String resourceUri, Map<String, String> selectors);
+    public Node get(String resourceUri, Map<String, String> selectors);
 
     /**
      * Starts a new enumeration context.
      *
      * @param resourceUri
      * @return context id
+     * @throw WSManException
      */
     public String enumerate(String resourceUri);
 
@@ -54,6 +64,7 @@ public interface WSManClient {
      * @param dialect
      * @param filter
      * @return context id
+     * @throw WSManException
      */
     public String enumerateWithFilter(String resourceUri, String dialect, String filter);
 
@@ -66,6 +77,7 @@ public interface WSManClient {
      * @param recursive when true, the implementation will continue to pull
      * until the 'EndOfSequence' is reached
      * @return the next context id, when pulling recursively this will be null
+     * @throw WSManException
      */
     public String pull(String contextId, String resourceUri, List<Node> nodes, boolean recursive);
 
@@ -79,6 +91,7 @@ public interface WSManClient {
      * @param recursive when true, the implementation will continue to pull
      * until the 'EndOfSequence' is reached
      * @return the next context id, when pulling recursively this will be null
+     * @throw WSManException
      */
     public String enumerateAndPull(String resourceUri, List<Node> nodes, boolean recursive);
 
@@ -93,6 +106,7 @@ public interface WSManClient {
      * @param recursive when true, the implementation will continue to pull
      * until the 'EndOfSequence' is reached
      * @return the next context id, when pulling recursively this will be null
+     * @throw WSManException
      */
     public String enumerateAndPullUsingFilter(String resourceUri, String dialect, String filter, List<Node> nodes, boolean recursive);
 }

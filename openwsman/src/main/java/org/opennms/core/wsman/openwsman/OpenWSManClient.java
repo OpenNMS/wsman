@@ -32,6 +32,7 @@ import javax.xml.soap.SOAPConstants;
 import javax.xml.soap.SOAPException;
 import javax.xml.soap.SOAPMessage;
 
+import org.opennms.core.wsman.IdentifyResponse;
 import org.opennms.core.wsman.WSManClient;
 import org.opennms.core.wsman.WSManConstants;
 import org.opennms.core.wsman.WSManEndpoint;
@@ -211,6 +212,11 @@ public class OpenWSManClient implements WSManClient {
 
     @Override
     public String enumerateAndPull(String resourceUri, List<Node> nodes, boolean recursive) {
+        throw new WSManException("Unsupported.");
+    }
+
+    @Override
+    public IdentifyResponse identify() {
         throw new WSManException("Unsupported.");
     }
 }

@@ -12,7 +12,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */package org.opennms.core.wsman.cxf;
+ */
+package org.opennms.core.wsman.cxf;
 
 import java.math.BigInteger;
 import java.util.Collections;
@@ -46,6 +47,7 @@ import org.apache.cxf.ws.addressing.JAXWSAConstants;
 import org.apache.cxf.ws.addressing.WSAddressingFeature;
 import org.apache.cxf.ws.addressing.WSAddressingFeature.AddressingResponses;
 import org.apache.cxf.ws.addressing.soap.VersionTransformer;
+import org.opennms.core.wsman.IdentifyResponse;
 import org.opennms.core.wsman.WSManClient;
 import org.opennms.core.wsman.WSManConstants;
 import org.opennms.core.wsman.WSManEndpoint;
@@ -66,6 +68,7 @@ import com.google.common.collect.Maps;
 
 import schemas.dmtf.org.wbem.wsman.v1.AttributableEmpty;
 import schemas.dmtf.org.wbem.wsman.v1.AttributablePositiveInteger;
+import schemas.dmtf.org.wbem.wsman.v1.IdentifyType;
 import schemas.dmtf.org.wbem.wsman.v1.MaxEnvelopeSizeType;
 
 /**
@@ -84,6 +87,20 @@ public class CXFWSManClient implements WSManClient {
 
     public CXFWSManClient(WSManEndpoint endpoint) {
         m_endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
+    }
+
+    public IdentifyOperations getIdentifier() {
+        // Create the proxy
+        IdentifyOperations identifier = createProxyFor(IdentifyOperations.class, Maps.newHashMap(), Maps.newHashMap());
+        Client cxfClient = ClientProxy.getClient(identifier);
+
+        // The Identify command does not require any headers but Windows Server 2008
+        // fails if the SOAP Envelope Header section is missing. In order to work around this
+        // we add the ResourceURI header, which should be ignored.
+        WSManHeaderInterceptor interceptor = new WSManHeaderInterceptor(WSManConstants.CIM_ALL_AVAILABLE_CLASSES);
+        cxfClient.getOutInterceptors().add(interceptor);
+
+        return identifier;
     }
 
     public EnumerationOperations getEnumerator(String resourceUri) {
@@ -121,6 +138,11 @@ public class CXFWSManClient implements WSManClient {
         cxfClient.getOutInterceptors().add(interceptor);
 
         return transferer;
+    }
+
+    @Override
+    public IdentifyResponse identify() {
+        return new IdentifyResponseWrapper(getIdentifier().identify(new IdentifyType()));
     }
 
     private EnumerateResponse enumerate(String resourceUri, String dialect, String filter, boolean optimized) {
@@ -279,6 +301,7 @@ public class CXFWSManClient implements WSManClient {
         nsMap.put("wsa", WSManConstants.XML_NS_WS_2004_08_ADDRESSING);
         nsMap.put("wsen", WSManConstants.XML_NS_WS_2004_09_ENUMERATION);
         nsMap.put("wsman", WSManConstants.XML_NS_DMTF_WSMAN_V1);
+        nsMap.put("wsmid", WSManConstants.XML_NS_DMTF_WSMAN_IDENTITY_V1);
         cxfClient.getRequestContext().put("soap.env.ns.map", nsMap);
 
         // Setup timeouts

@@ -34,4 +34,9 @@ public class OpenWSManClientIT extends AbstractWSManClientIT {
     public void canEnumerateAndPullUsingWQLFilter() {
         // Pass. Not yet implemented
     }
+
+    @Test
+    public void canIdentify() {
+        // Pass. Not yet implemented
+    }
 }

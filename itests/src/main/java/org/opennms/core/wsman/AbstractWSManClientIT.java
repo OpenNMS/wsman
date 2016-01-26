@@ -84,6 +84,23 @@ public abstract class AbstractWSManClientIT {
     }
 
     @Test
+    public void canIdentify() throws InterruptedException {
+        stubFor(post(urlEqualTo("/wsman"))
+                .willReturn(aResponse()
+                    .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
+                    .withBodyFile("identify-response.xml")));
+
+        IdentifyResponse identifyResponse = client.identify();
+
+        dumpRequestsToStdout();
+
+        assertEquals(1, identifyResponse.getProtocolVersions().size());
+        assertEquals("http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd", identifyResponse.getProtocolVersions().get(0));
+        assertEquals("Openwsman Project", identifyResponse.getProductVendor());
+        assertEquals("2.0.0", identifyResponse.getProductVersion());
+    }
+
+    @Test
     public void canEnumerateWithWQLFilter() throws InterruptedException {
         stubFor(post(urlEqualTo("/wsman"))
                 .willReturn(aResponse()

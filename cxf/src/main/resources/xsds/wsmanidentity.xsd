@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Notice 
+DSP8012 
+Document: WS-Management Identify XML Schema
+Version: 1.0.1
+Status: DMTF Standard
+Date: 03/11/2009
+Author: Bryan Murray, Hemal Shah, Jim Davis et al.
+Description: XML schema for WS-Management identify messages.
+
+Copyright © 2009 Distributed Management Task Force, Inc. (DMTF). All rights reserved. DMTF is a not-for-profit association of industry members dedicated to promoting enterprise and systems management and interoperability. Members and non-members may reproduce DMTF specifications and documents  provided that correct attribution is given. As DMTF specifications may be revised from time to time, the particular version and release date should always be noted. Implementation of certain elements of this standard or proposed standard may be subject to third party patent rights, including provisional patent rights (herein "patent rights"). DMTF makes no representations to users of the standard as to the existence of such rights, and is not responsible to recognize, disclose, or identify any or all such third party patent right, owners or claimants, nor for any incomplete or inaccurate identification or disclosure of such rights, owners or claimants. DMTF shall have no liability to any party, in any manner or circumstance, under any legal theory whatsoever, for failure to recognize, disclose, or identify any such third party patent rights, or for such party’s reliance on the standard or incorporation thereof in its product, protocols or testing procedures. DMTF shall have no liability to any party implementing such standard, whether such implementation is foreseeable or not, nor to any patent owner or claimant, and shall have no liability or responsibility for costs or losses incurred if a standard is withdrawn or modified after publication, and shall be indemnified and held harmless by any party implementing the standard from any and all claims of infringement by a patent owner for such implementations. For information about patents held by third-parties which have notified the DMTF that, in their opinion, such patent may relate to or impact implementations of DMTF standards, visit http://www.dmtf.org/about/policies/disclosures.php.
+
+-->
+<xs:schema
+	targetNamespace="http://schemas.dmtf.org/wbem/wsman/identity/1/wsmanidentity.xsd"
+	    xmlns:wsmid="http://schemas.dmtf.org/wbem/wsman/identity/1/wsmanidentity.xsd"
+	    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+	elementFormDefault="qualified" version="1.0.1">
+	<xs:complexType name="IdentifyType">
+		<xs:sequence>
+			<xs:any namespace="##other" minOccurs="0" maxOccurs="unbounded"
+				processContents="lax" />
+		</xs:sequence>
+		<xs:anyAttribute namespace="##other" processContents="lax" />
+	</xs:complexType>
+	<xs:element name="Identify" type="wsmid:IdentifyType" />
+
+	<xs:simpleType name="restrictedProtocolVersionType">
+
+		<xs:restriction base="xs:anyURI">
+			<xs:enumeration
+				value="http://schemas.dmtf.org/wbem/wsman/identity/1/wsmanidentity/NoAnonymousDisclosure" />
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:simpleType name="ProtocolVersionType">
+		<xs:union memberTypes="wsmid:restrictedProtocolVersionType xs:anyURI" />
+	</xs:simpleType>
+	<xs:element name="ProtocolVersion" type="wsmid:ProtocolVersionType" />
+	<xs:element name="ProductVendor" type="xs:string" />
+	<xs:element name="ProductVersion" type="xs:string" />
+	<xs:element name="InitiativeName" type="xs:string" />
+	<xs:element name="InitiativeVersion" type="wsmid:VERSION_VALUE"/>
+	<xs:element name="SecurityProfileName" type="xs:anyURI" />
+	<xs:complexType name="SecurityProfilesType">
+		<xs:sequence>
+			<xs:element ref="wsmid:SecurityProfileName" minOccurs="0"
+				maxOccurs="unbounded" />
+		</xs:sequence>
+	</xs:complexType>
+	<xs:element name="SecurityProfiles" type="wsmid:SecurityProfilesType" />
+	<xs:element name="AddressingVersionURI" type="xs:anyURI" />
+	<xs:element name="IntiativeSupport">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element ref="wsmid:InitiativeName" minOccurs="1" maxOccurs="1" />
+				<xs:element ref="wsmid:InitiativeVersion" minOccurs="1" maxOccurs="1"/>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+	
+	<xs:complexType name="IdentifyResponseType">
+		<xs:sequence>
+			<xs:element ref="wsmid:ProtocolVersion" maxOccurs="unbounded" />
+			<xs:element ref="wsmid:ProductVendor" minOccurs="0" />
+			<xs:element ref="wsmid:ProductVersion" minOccurs="0" />
+			<xs:element ref="wsmid:IntiativeSupport" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:any namespace="##other" minOccurs="0" maxOccurs="unbounded" processContents="lax" />
+			<xs:element ref="wsmid:SecurityProfiles" minOccurs="0" maxOccurs="1" />
+			<xs:element ref="wsmid:AddressingVersionURI" minOccurs="0" maxOccurs="unbounded" />
+		</xs:sequence>
+		<xs:anyAttribute namespace="##other" processContents="lax" />
+	</xs:complexType>
+	
+	<xs:element name="IdentifyResponse" type="wsmid:IdentifyResponseType" />
+	
+	<xs:simpleType name="VERSION_VALUE">
+		<xs:annotation>
+			<xs:documentation>Version values must be in form of M.N.U (Major, Minor, Update)</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="\d*.\d*.\d*" />
+		</xs:restriction>
+	</xs:simpleType>
+	
+</xs:schema>

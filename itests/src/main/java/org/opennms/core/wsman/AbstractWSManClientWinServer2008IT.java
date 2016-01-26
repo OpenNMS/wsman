@@ -15,6 +15,7 @@
  */
 package org.opennms.core.wsman;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
@@ -61,5 +62,11 @@ public abstract class AbstractWSManClientWinServer2008IT {
         List<Node> services = Lists.newArrayList();
         client.enumerateAndPull("http://schemas.microsoft.com/wbem/wsman/1/wmi/root/cimv2/Win32_Service", services, true);
         assertTrue(services.size() + " services", services.size() > 10);
+    }
+
+    @Test
+    public void canIdentifyOS() {
+        IdentifyResponse identifyResponse = client.identify();
+        assertEquals("Microsoft Corporation", identifyResponse.getProductVendor());
     }
 }
