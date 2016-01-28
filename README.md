@@ -7,6 +7,7 @@ A pure Java WS-Man client implemented using JAX-WS & CXF with support for:
 * Get Operations (DSP8035)
 * Identify Operation (DSP0226)
 * Basic, NTLM and SPNEGO Authentication
+* OSGi Compatible
 
 ## Java Example
 
@@ -16,7 +17,7 @@ Artifacts are available in Maven Central. Add it to your Maven project using:
 <dependency>
   <groupId>org.opennms.core.wsman</groupId>
   <artifactId>org.opennms.core.wsman.cxf</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.2</version>
 </dependency>
 ```
 

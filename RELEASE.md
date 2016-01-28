@@ -6,4 +6,6 @@ Use the following commands to stage and release a new build:
 mvn release:prepare
 mvn release:perform
 mvn nexus-staging:release -DstagingRepositoryId=${repositoryIdFromOutputOfPerform}
+git push
+git push --tags
 ```
