@@ -40,6 +40,7 @@
         <configuration>
           <skipITs>${skipITs}</skipITs>
           <reuseForks>false</reuseForks>
+          <argLine>${jacoco.agent.arg}</argLine>
         </configuration>
       </plugin>
       <plugin>
