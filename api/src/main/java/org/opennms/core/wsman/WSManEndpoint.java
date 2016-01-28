@@ -33,6 +33,7 @@ public class WSManEndpoint {
     private final URL url;
     private final String username;
     private final String password;
+    private final boolean spnegoAuth;
     private final boolean strictSSL;
     private final WSManVersion serverVersion;
     private final Integer maxElements;
@@ -44,6 +45,7 @@ public class WSManEndpoint {
         url = builder.url;
         username = builder.username;
         password = builder.password;
+        spnegoAuth = builder.spnegoAuth;
         strictSSL = builder.strictSSL;
         serverVersion = builder.serverVersion;
         maxElements = builder.maxElements;
@@ -57,6 +59,7 @@ public class WSManEndpoint {
        private boolean strictSSL = true;
        private String username;
        private String password;
+       private boolean spnegoAuth = false;
        private WSManVersion serverVersion = WSManVersion.WSMAN_1_2;
        private Integer maxElements;
        private Integer maxEnvelopeSize;
@@ -74,6 +77,11 @@ public class WSManEndpoint {
        public Builder withBasicAuth(String username, String password) {
            this.username = Objects.requireNonNull(username, "username cannot be null");
            this.password = Objects.requireNonNull(password, "password cannot be null");
+           return this;
+       }
+
+       public Builder withSpnegoAuth() {
+           spnegoAuth = true;
            return this;
        }
 
@@ -138,6 +146,10 @@ public class WSManEndpoint {
 
     public String getPassword() {
         return password;
+    }
+
+    public boolean isSpnegoAuth() {
+        return spnegoAuth;
     }
 
     public boolean isStrictSSL() {

@@ -39,6 +39,7 @@ import org.apache.cxf.jaxws.JaxWsProxyFactoryBean;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.transport.http.HTTPConduit;
 import org.apache.cxf.transport.http.auth.DefaultBasicAuthSupplier;
+import org.apache.cxf.transport.http.auth.HttpAuthHeader;
 import org.apache.cxf.transports.http.configuration.HTTPClientPolicy;
 import org.apache.cxf.ws.addressing.AddressingProperties;
 import org.apache.cxf.ws.addressing.AttributedURIType;
@@ -346,6 +347,9 @@ public class CXFWSManClient implements WSManClient {
 
             requestContext.put(BindingProvider.USERNAME_PROPERTY, m_endpoint.getUsername());
             requestContext.put(BindingProvider.PASSWORD_PROPERTY, m_endpoint.getPassword());
+        } else if (m_endpoint.isSpnegoAuth()) {
+            LOG.debug("Enabling SPNEGO authentication.");
+            http.getAuthorization().setAuthorizationType(HttpAuthHeader.AUTH_TYPE_NEGOTIATE);
         }
 
         // Set the Reply-To header to the anonymous address
