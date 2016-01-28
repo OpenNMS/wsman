@@ -5,7 +5,7 @@ before_install:
   - pip install --user codecov
 
 script:
-  - mvn test && mvn -DskipITs=false failsafe:integration-test
+  - mvn test && mvn -DskipITs=false failsafe:integration-test && mvn -DskipITs=false failsafe:verify
 
 after_success:
   - codecov
