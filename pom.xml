@@ -37,7 +37,7 @@
 
     <!-- Implementations -->
     <module>cxf</module>
-    <module>openwsman</module>
+    <!-- <module>openwsman</module> -->
   </modules>
 
   <properties>
