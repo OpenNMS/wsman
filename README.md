@@ -2,7 +2,55 @@
 
 A pure Java WS-Man client implemented using JAX-WS & CXF.
 
-## Compiling
+## Java Example
+
+Artifacts are available in Maven Central. Add it to your Maven project using:
+
+```xml
+<dependency>
+  <groupId>org.opennms.core.wsman</groupId>
+  <artifactId>org.opennms.core.wsman.cxf</artifactId>
+  <version>1.0.0</version>
+</dependency>
+```
+
+And start enumerating resources:
+
+```java
+package org.opennms.core.wsman.example;
+
+import java.net.MalformedURLException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.opennms.core.wsman.WSManClient;
+import org.opennms.core.wsman.WSManConstants;
+import org.opennms.core.wsman.WSManEndpoint;
+import org.opennms.core.wsman.WSManVersion;
+import org.opennms.core.wsman.cxf.CXFWSManClientFactory;
+import org.w3c.dom.Node;
+
+public class WSManClientExample {
+
+    public static void main(String[] args) throws MalformedURLException {
+        WSManEndpoint endpoint = new WSManEndpoint.Builder("https://127.0.0.1/wsman")
+                .withServerVersion(WSManVersion.WSMAN_1_0)
+                .withStrictSSL(false)
+                .build();
+        WSManClient client = new CXFWSManClientFactory().getClient(endpoint);
+
+        List<Node> nodes = new ArrayList<>();
+        client.enumerateAndPullUsingFilter(
+                WSManConstants.CIM_ALL_AVAILABLE_CLASSES,
+                WSManConstants.XML_NS_WQL_DIALECT,
+                "select DeviceDescription,PrimaryStatus,TotalOutputPower,InputVoltage,FirmwareVersion,RedundancyStatus from DCIM_PowerSupplyView where DetailedState != 'Absent' and PrimaryStatus != 0",
+                nodes,
+                true);
+    }
+}
+```
+
+## Compiling From Source
 
 Requires Java 8 and Maven 3 (tested with 3.3.3)
 
