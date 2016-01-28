@@ -313,6 +313,8 @@ public class CXFWSManClient implements WSManClient {
         if (m_endpoint.getReceiveTimeout() != null) {
             httpClientPolicy.setReceiveTimeout(m_endpoint.getReceiveTimeout());
         }
+        // Turn off chunking so that NTLM can occur
+        httpClientPolicy.setAllowChunking(false);
         http.setClient(httpClientPolicy);
 
         if (!m_endpoint.isStrictSSL()) {
