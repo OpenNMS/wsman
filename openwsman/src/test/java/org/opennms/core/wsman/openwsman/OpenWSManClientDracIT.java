@@ -15,9 +15,11 @@
  */
 package org.opennms.core.wsman.openwsman;
 
+import org.junit.Ignore;
 import org.opennms.core.wsman.AbstractWSManClientDracIT;
 import org.opennms.core.wsman.WSManClientFactory;
 
+@Ignore("Expects an iDrac to be configured in ~/wsman.properties")
 public class OpenWSManClientDracIT extends AbstractWSManClientDracIT {
     @Override
     public WSManClientFactory getFactory() {

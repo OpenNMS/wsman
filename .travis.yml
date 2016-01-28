@@ -4,6 +4,9 @@ sudo: false # faster builds
 before_install:
   - pip install --user codecov
 
+script:
+  - mvn test && mvn -DskipITs=false failsafe:integration-test
+
 after_success:
   - codecov
 
