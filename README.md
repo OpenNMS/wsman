@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/OpenNMS/wsman.svg?branch=master)](https://travis-ci.org/OpenNMS/wsman) [![codecov.io](https://codecov.io/github/OpenNMS/wsman/coverage.svg?branch=master)](https://codecov.io/github/OpenNMS/wsman?branch=master)
+
 # WS-Man Client
 
 A pure Java WS-Man client implemented using JAX-WS & CXF with support for:
