@@ -1,6 +1,10 @@
 # WS-Man Client
 
-A pure Java WS-Man client implemented using JAX-WS & CXF.
+A pure Java WS-Man client implemented using JAX-WS & CXF with support for:
+* Enumerate and Pull Operations (DSP8037)
+* Get Operations (DSP8035)
+* Identify Operation (DSP0226)
+* Basic, NTLM and SPNEGO Authentication
 
 ## Java Example
 
