@@ -26,8 +26,8 @@ public interface WSManClientFactory {
     /**
      * Constructs a new {@link WSManClient} for the given endpoint.
      *
-     * @param endpoint
-     * @return
+     * @param endpoint target
+     * @return a new client instance
      */
     public WSManClient getClient(WSManEndpoint endpoint);
 }

@@ -34,37 +34,37 @@ public interface WSManClient {
      * Discovers the capabilities and version information of the remote service.
      *
      * @return identify response
-     * @throw WSManException
+     * @throws WSManException on error
      */
     public IdentifyResponse identify();
 
     /**
      * Retrieves a single element using the provided selectors.
      *
-     * @param resourceUri
-     * @param selectors
+     * @param resourceUri uri
+     * @param selectors map of selectors
      * @return the requested node, otherwise an exception is thrown
-     * @throw WSManException
+     * @throws WSManException on error
      */
     public Node get(String resourceUri, Map<String, String> selectors);
 
     /**
      * Starts a new enumeration context.
      *
-     * @param resourceUri
+     * @param resourceUri uri
      * @return context id
-     * @throw WSManException
+     * @throws WSManException on error
      */
     public String enumerate(String resourceUri);
 
     /**
      * Starts a new enumeration context using a filter.
      *
-     * @param resourceUri
-     * @param dialect
-     * @param filter
+     * @param resourceUri uri
+     * @param dialect used by the filter
+     * @param filter query
      * @return context id
-     * @throw WSManException
+     * @throws WSManException on error
      */
     public String enumerateWithFilter(String resourceUri, String dialect, String filter);
 
@@ -72,12 +72,12 @@ public interface WSManClient {
      * Pulls elements from an existing enumeration context.
      *
      * @param contextId the context id
-     * @param resourceUri
+     * @param resourceUri uri
      * @param nodes existing list in which the pulled elements will be added
      * @param recursive when true, the implementation will continue to pull
      * until the 'EndOfSequence' is reached
      * @return the next context id, when pulling recursively this will be null
-     * @throw WSManException
+     * @throws WSManException on error
      */
     public String pull(String contextId, String resourceUri, List<Node> nodes, boolean recursive);
 
@@ -86,12 +86,12 @@ public interface WSManClient {
      *
      * The implementation should attempt to consolidate the calls using optimized enumeration.
      *
-     * @param resourceUri
+     * @param resourceUri uri
      * @param nodes existing list in which the pulled elements will be added
      * @param recursive when true, the implementation will continue to pull
      * until the 'EndOfSequence' is reached
      * @return the next context id, when pulling recursively this will be null
-     * @throw WSManException
+     * @throws WSManException on error
      */
     public String enumerateAndPull(String resourceUri, List<Node> nodes, boolean recursive);
 
@@ -100,13 +100,13 @@ public interface WSManClient {
      *
      * The implementation should attempt to consolidate the calls using optimized enumeration.
      *
-     * @param resourceUri
-     * @param dialect
-     * @param filter
+     * @param resourceUri uri
+     * @param dialect used by the filter
+     * @param filter query
      * @param recursive when true, the implementation will continue to pull
      * until the 'EndOfSequence' is reached
      * @return the next context id, when pulling recursively this will be null
-     * @throw WSManException
+     * @throws WSManException on error
      */
     public String enumerateAndPullUsingFilter(String resourceUri, String dialect, String filter, List<Node> nodes, boolean recursive);
 }

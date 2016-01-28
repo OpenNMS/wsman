@@ -73,7 +73,7 @@ import schemas.dmtf.org.wbem.wsman.v1.IdentifyType;
 import schemas.dmtf.org.wbem.wsman.v1.MaxEnvelopeSizeType;
 
 /**
- * A WS-Man client implemented using JAX-WS & CXF.
+ * A WS-Man client implemented using JAX-WS &amp; CXF.
  *
  * @author jwhite
  */

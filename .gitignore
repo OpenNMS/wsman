@@ -13,3 +13,4 @@ java/bin/
 *.swp
 
 dependency-reduced-pom.xml
+release.properties
