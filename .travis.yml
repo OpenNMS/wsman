@@ -9,4 +9,3 @@ after_success:
 
 jdk:
   - oraclejdk8
-  - openjdk8
