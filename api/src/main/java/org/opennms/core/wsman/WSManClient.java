@@ -36,7 +36,7 @@ public interface WSManClient {
      * @return identify response
      * @throws WSManException on error
      */
-    public IdentifyResponse identify();
+    public Identity identify();
 
     /**
      * Retrieves a single element using the provided selectors.

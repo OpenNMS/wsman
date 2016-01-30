@@ -18,11 +18,11 @@ package org.opennms.core.wsman.cxf;
 import java.util.List;
 import java.util.Objects;
 
-import org.opennms.core.wsman.IdentifyResponse;
+import org.opennms.core.wsman.Identity;
 
 import schemas.dmtf.org.wbem.wsman.v1.IdentifyResponseType;
 
-public class IdentifyResponseWrapper implements IdentifyResponse {
+public class IdentifyResponseWrapper implements Identity {
 
     private final IdentifyResponseType m_identifyResponse;
 

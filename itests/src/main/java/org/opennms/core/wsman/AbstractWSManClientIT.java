@@ -90,7 +90,7 @@ public abstract class AbstractWSManClientIT {
                     .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
                     .withBodyFile("identify-response.xml")));
 
-        IdentifyResponse identifyResponse = client.identify();
+        Identity identifyResponse = client.identify();
 
         dumpRequestsToStdout();
 

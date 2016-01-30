@@ -48,7 +48,7 @@ import org.apache.cxf.ws.addressing.JAXWSAConstants;
 import org.apache.cxf.ws.addressing.WSAddressingFeature;
 import org.apache.cxf.ws.addressing.WSAddressingFeature.AddressingResponses;
 import org.apache.cxf.ws.addressing.soap.VersionTransformer;
-import org.opennms.core.wsman.IdentifyResponse;
+import org.opennms.core.wsman.Identity;
 import org.opennms.core.wsman.WSManClient;
 import org.opennms.core.wsman.WSManConstants;
 import org.opennms.core.wsman.WSManEndpoint;
@@ -142,7 +142,7 @@ public class CXFWSManClient implements WSManClient {
     }
 
     @Override
-    public IdentifyResponse identify() {
+    public Identity identify() {
         return new IdentifyResponseWrapper(getIdentifier().identify(new IdentifyType()));
     }
 

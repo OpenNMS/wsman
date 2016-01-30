@@ -17,7 +17,7 @@ package org.opennms.core.wsman;
 
 import java.util.List;
 
-public interface IdentifyResponse {
+public interface Identity {
 
     public List<String> getProtocolVersions();
 

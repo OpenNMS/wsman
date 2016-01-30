@@ -66,7 +66,7 @@ public abstract class AbstractWSManClientWinServer2008IT {
 
     @Test
     public void canIdentifyOS() {
-        IdentifyResponse identifyResponse = client.identify();
+        Identity identifyResponse = client.identify();
         assertEquals("Microsoft Corporation", identifyResponse.getProductVendor());
     }
 }
