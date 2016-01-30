@@ -52,8 +52,12 @@ import org.opennms.core.wsman.Identity;
 import org.opennms.core.wsman.WSManClient;
 import org.opennms.core.wsman.WSManConstants;
 import org.opennms.core.wsman.WSManEndpoint;
-import org.opennms.core.wsman.WSManException;
 import org.opennms.core.wsman.WSManVersion;
+import org.opennms.core.wsman.exceptions.HTTPException;
+import org.opennms.core.wsman.exceptions.InvalidResourceURI;
+import org.opennms.core.wsman.exceptions.SOAPFault;
+import org.opennms.core.wsman.exceptions.UnauthorizedException;
+import org.opennms.core.wsman.exceptions.WSManException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
@@ -143,7 +147,11 @@ public class CXFWSManClient implements WSManClient {
 
     @Override
     public Identity identify() {
-        return new IdentifyResponseWrapper(getIdentifier().identify(new IdentifyType()));
+        try {
+            return new IdentifyResponseWrapper(getIdentifier().identify(new IdentifyType()));
+        } catch (RuntimeException e) {
+            throw wrapException(e);
+        }
     }
 
     private EnumerateResponse enumerate(String resourceUri, String dialect, String filter, boolean optimized) {
@@ -181,7 +189,11 @@ public class CXFWSManClient implements WSManClient {
             enumerate.getAny().add(maxElements);
         }
 
-        return getEnumerator(resourceUri).enumerate(enumerate);
+        try {
+            return getEnumerator(resourceUri).enumerate(enumerate);
+        } catch (RuntimeException e) {
+            throw wrapException(e);
+        }
     }
 
     private String enumerateAndPull(String resourceUri, String dialect, String filter, List<Node> nodes, boolean recursive) {
@@ -233,7 +245,12 @@ public class CXFWSManClient implements WSManClient {
         }
 
         // Issue the pull
-        PullResponse response = getEnumerator(resourceUri).pull(pull);
+        PullResponse response = null;
+        try {
+            response = getEnumerator(resourceUri).pull(pull);
+        } catch (RuntimeException e) {
+            throw wrapException(e);
+        }
         if (response == null) {
             throw new WSManException(String.format("Pull failed for context id: %s. See logs for details.", contextId));
         }
@@ -264,7 +281,12 @@ public class CXFWSManClient implements WSManClient {
     public Node get(String resourceUri, Map<String, String> selectors) {
         String elementType = TypeUtils.getElementTypeFromResourceUri(resourceUri);
         TransferOperations transferer = getTransferer(resourceUri, elementType, selectors);
-        TransferElement transferElement = transferer.get();
+        TransferElement transferElement = null;
+        try {
+            transferElement = transferer.get();
+        } catch (RuntimeException e) {
+            throw wrapException(e);
+        }
         if (transferElement == null) {
             // Note that fault should be thrown if the object doesn't exist
             throw new WSManException("Get failed. See logs for details.");
@@ -405,5 +427,35 @@ public class CXFWSManClient implements WSManClient {
         maps.setReplyTo(ref);
         maps.setFaultTo(ref);
         return maps;
+    }
+
+    /**
+     * Wraps exceptions generated the CXF client proxy into
+     * our WS-Man specific types.
+     *
+     * @param e thrown by the CXF client proxy
+     * @return (possibly) wrapped exception
+     */
+    private static RuntimeException wrapException(RuntimeException e) {
+        final Throwable cause = e.getCause();
+        if (cause == null) {
+            // Unknown exception
+            return e;
+        }
+
+        if (cause instanceof org.apache.cxf.binding.soap.SoapFault) {
+            org.apache.cxf.binding.soap.SoapFault soapFault = (org.apache.cxf.binding.soap.SoapFault)cause;
+            if (WSManConstants.XML_NS_WS_2004_08_ADDRESSING.equals(soapFault.getSubCode().getNamespaceURI()) &&
+                    "DestinationUnreachable".equals(soapFault.getSubCode().getLocalPart())) {
+                return new InvalidResourceURI(e);
+            }
+            throw new SOAPFault(e);
+        } else if (cause instanceof org.apache.cxf.transport.http.HTTPException) {
+            if (((org.apache.cxf.transport.http.HTTPException)cause).getResponseCode() == 401) {
+                return new UnauthorizedException(e);
+            }
+            throw new HTTPException(e);
+        }
+        return new WSManException(e);
     }
 }

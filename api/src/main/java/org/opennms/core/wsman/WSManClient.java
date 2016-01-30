@@ -18,6 +18,7 @@ package org.opennms.core.wsman;
 import java.util.List;
 import java.util.Map;
 
+import org.opennms.core.wsman.exceptions.WSManException;
 import org.w3c.dom.Node;
 
 /**

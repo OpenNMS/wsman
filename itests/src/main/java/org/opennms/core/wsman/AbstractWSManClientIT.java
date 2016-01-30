@@ -20,6 +20,8 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.opennms.core.wsman.WSManEndpoint;
+import org.opennms.core.wsman.exceptions.InvalidResourceURI;
+import org.opennms.core.wsman.exceptions.UnauthorizedException;
 import org.w3c.dom.Node;
 
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
@@ -209,6 +211,29 @@ public abstract class AbstractWSManClientIT {
         XMLTag tag = XMLDoc.from(node, true);
         int primaryStatus = Integer.valueOf(tag.gotoChild("n1:PrimaryStatus").getText());
         assertEquals(1, primaryStatus);
+    }
+
+    @Test(expected=UnauthorizedException.class)
+    public void throwsUnauthorizedExceptionOn401() {
+        stubFor(post(urlEqualTo("/wsman"))
+                .willReturn(
+                        aResponse()
+                        .withStatus(401)
+                        .withHeader("Content-Type", "text/plain")
+                        .withBody("Not allowed!")));
+        client.enumerate("http://schemas.dell.com/wbem/wscim/1/cim-schema/2/DCIM_ComputerSystem");
+    }
+
+    @Test(expected=InvalidResourceURI.class)
+    public void throwsInvalidResourceURIOnFault() {
+        stubFor(post(urlEqualTo("/wsman"))
+                .willReturn(aResponse()
+                        .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
+                        .withBodyFile("get-response-fault.xml")));
+        Map<String, String> selectors = Maps.newHashMap();
+        selectors.put("CreationClassName", "DCIM_ComputerSystem");
+        selectors.put("Name", "srv:system");
+        client.get("http://schemas.dell.com/wbem/wscim/1/cim-schema/2/DCIM_ComputerSystem", selectors);
     }
 
     private void dumpRequestsToStdout() {

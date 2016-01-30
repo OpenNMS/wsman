@@ -1,5 +1,5 @@
 /*
- * Copyright 2015, The OpenNMS Group
+ * Copyright 2016, The OpenNMS Group
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -13,21 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.opennms.core.wsman;
+package org.opennms.core.wsman.exceptions;
 
 /**
- * Generic WS-Man related exception.
+ * Authentication or authorization failed for the requested resource.
  *
  * @author jwhite
  */
-public class WSManException extends RuntimeException {
-    private static final long serialVersionUID = -2894934806760355903L;
+public class UnauthorizedException extends WSManException {
+    private static final long serialVersionUID = 8958931434340638066L;
 
-    public WSManException(String message) {
-        super(message);
-    }
-
-    public WSManException(String message, Throwable cause) {
-        super(message, cause);
+    public UnauthorizedException(Throwable cause) {
+        super("Authentication or authorization failed.", cause);
     }
 }

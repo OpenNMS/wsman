@@ -10,7 +10,7 @@ import javax.xml.namespace.QName;
 import javax.xml.transform.dom.DOMResult;
 
 import org.opennms.core.wsman.WSManConstants;
-import org.opennms.core.wsman.WSManException;
+import org.opennms.core.wsman.exceptions.WSManException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.xmlsoap.schemas.ws._2004._09.enumeration.EnumerateResponse;

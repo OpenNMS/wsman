@@ -3,6 +3,7 @@ build/
 dist/
 tmp/
 target
+bin/
 
 # Editors
 .idea
