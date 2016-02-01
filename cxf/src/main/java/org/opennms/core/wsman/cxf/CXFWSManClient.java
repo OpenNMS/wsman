@@ -25,6 +25,7 @@ import java.util.Objects;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import javax.xml.bind.JAXBElement;
+import javax.xml.namespace.QName;
 import javax.xml.ws.BindingProvider;
 
 import org.apache.cxf.binding.soap.SoapBindingConstants;
@@ -444,9 +445,10 @@ public class CXFWSManClient implements WSManClient {
         }
 
         if (cause instanceof org.apache.cxf.binding.soap.SoapFault) {
-            org.apache.cxf.binding.soap.SoapFault soapFault = (org.apache.cxf.binding.soap.SoapFault)cause;
-            if (WSManConstants.XML_NS_WS_2004_08_ADDRESSING.equals(soapFault.getSubCode().getNamespaceURI()) &&
-                    "DestinationUnreachable".equals(soapFault.getSubCode().getLocalPart())) {
+            final org.apache.cxf.binding.soap.SoapFault soapFault = (org.apache.cxf.binding.soap.SoapFault)cause;
+            final QName subCode = soapFault.getSubCode();
+            if (subCode != null && (WSManConstants.XML_NS_WS_2004_08_ADDRESSING.equals(soapFault.getSubCode().getNamespaceURI()) &&
+                    "DestinationUnreachable".equals(soapFault.getSubCode().getLocalPart()))) {
                 return new InvalidResourceURI(e);
             }
             throw new SOAPFault(e);
