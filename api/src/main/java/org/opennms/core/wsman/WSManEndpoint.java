@@ -33,7 +33,7 @@ public class WSManEndpoint {
     private final URL url;
     private final String username;
     private final String password;
-    private final boolean spnegoAuth;
+    private final boolean gssAuth;
     private final boolean strictSSL;
     private final WSManVersion serverVersion;
     private final Integer maxElements;
@@ -45,7 +45,7 @@ public class WSManEndpoint {
         url = builder.url;
         username = builder.username;
         password = builder.password;
-        spnegoAuth = builder.spnegoAuth;
+        gssAuth = builder.gssAuth;
         strictSSL = builder.strictSSL;
         serverVersion = builder.serverVersion;
         maxElements = builder.maxElements;
@@ -59,7 +59,7 @@ public class WSManEndpoint {
        private boolean strictSSL = true;
        private String username;
        private String password;
-       private boolean spnegoAuth = false;
+       private boolean gssAuth = false;
        private WSManVersion serverVersion = WSManVersion.WSMAN_1_2;
        private Integer maxElements;
        private Integer maxEnvelopeSize;
@@ -80,8 +80,8 @@ public class WSManEndpoint {
            return this;
        }
 
-       public Builder withSpnegoAuth() {
-           spnegoAuth = true;
+       public Builder withGSSAuth() {
+           gssAuth = true;
            return this;
        }
 
@@ -148,8 +148,8 @@ public class WSManEndpoint {
         return password;
     }
 
-    public boolean isSpnegoAuth() {
-        return spnegoAuth;
+    public boolean isGSSAuth() {
+        return gssAuth;
     }
 
     public boolean isStrictSSL() {

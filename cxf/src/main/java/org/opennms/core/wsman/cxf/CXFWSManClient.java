@@ -369,8 +369,8 @@ public class CXFWSManClient implements WSManClient {
 
             requestContext.put(BindingProvider.USERNAME_PROPERTY, m_endpoint.getUsername());
             requestContext.put(BindingProvider.PASSWORD_PROPERTY, m_endpoint.getPassword());
-        } else if (m_endpoint.isSpnegoAuth()) {
-            LOG.debug("Enabling SPNEGO authentication.");
+        } else if (m_endpoint.isGSSAuth()) {
+            LOG.debug("Enabling GSS authentication.");
             http.getAuthorization().setAuthorizationType(HttpAuthHeader.AUTH_TYPE_NEGOTIATE);
         }
 
