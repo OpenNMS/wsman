@@ -20,10 +20,10 @@ package org.opennms.core.wsman.exceptions;
  *
  * @author jwhite
  */
-public class UnauthorizedException extends WSManException {
+public class UnauthorizedException extends HTTPException {
     private static final long serialVersionUID = 8958931434340638066L;
 
     public UnauthorizedException(Throwable cause) {
-        super("Authentication or authorization failed.", cause);
+        super(cause);
     }
 }
