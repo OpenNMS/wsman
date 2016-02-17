@@ -50,7 +50,7 @@ public class TypeUtils {
 
     protected static String getContextIdFrom(EnumerationContextType context) {
         // The content of the EnumerationContext should contain a single string, the context id
-        if (context.getContent() == null) {
+        if (context == null || context.getContent() == null) {
             throw new WSManException(String.format("EnumerationContext %s has no content.", context));
         }
 
