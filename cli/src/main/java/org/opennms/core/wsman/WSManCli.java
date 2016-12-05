@@ -61,6 +61,9 @@ public class WSManCli {
     @Option(name="-strictSSL", usage="ssl certificate verification")
     private boolean strictSSL = false;
 
+    @Option(name="-gssAuth", usage="GSS authentication")
+    private boolean gssAuth = false;
+
     @Option(name="-o", usage="operation")
     WSManOperation operation = WSManOperation.ENUM;
 
@@ -120,6 +123,8 @@ public class WSManCli {
                 .withMaxElements(100);
         if (username != null && password != null) {
             builder.withBasicAuth(username, password);
+        } else if (gssAuth) {
+            builder.withGSSAuth();
         }
         WSManEndpoint endpoint = builder.build();
         LOG.info("Using endpoint: {}", endpoint);
