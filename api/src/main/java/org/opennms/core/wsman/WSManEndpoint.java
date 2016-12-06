@@ -137,7 +137,7 @@ public class WSManEndpoint {
     }
 
     public boolean isBasicAuth() {
-        return username != null;
+        return !isGSSAuth() && username != null;
     }
 
     public String getUsername() {
@@ -177,10 +177,10 @@ public class WSManEndpoint {
     }
 
     public String toString() {
-        return String.format("WSManEndpoint[url='%s', isBasicAuth='%s', isStrictSSL='%s', "
+        return String.format("WSManEndpoint[url='%s', isGSSAuth='%s', isBasicAuth='%s', isStrictSSL='%s', "
                 + "serverVersion='%s',  maxElements='%s', maxEnvelopeSize='%s'"
                 + "connectionTimeout='%s', receiveTimeout='%s']",
-                url, isBasicAuth(), isStrictSSL(), serverVersion,
+                url, isGSSAuth(), isBasicAuth(), isStrictSSL(), serverVersion,
                 maxElements, maxEnvelopeSize, connectionTimeout, receiveTimeout);
     }
 }
