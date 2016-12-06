@@ -362,7 +362,15 @@ public class CXFWSManClient implements WSManClient {
         }
 
         // Setup authentication
-        if (m_endpoint.isBasicAuth()) {
+        if (m_endpoint.isGSSAuth()) {
+            // See http://cxf.apache.org/docs/client-http-transport-including-ssl-support.html#ClientHTTPTransport(includingSSLsupport)-SpnegoAuthentication(Kerberos)
+            LOG.debug("Enabling GSS authentication.");
+            http.getAuthorization().setAuthorizationType(HttpAuthHeader.AUTH_TYPE_NEGOTIATE);
+            http.getAuthorization().setAuthorization("WSManClient");
+            // Set the username and password if provided
+            http.getAuthorization().setUserName(m_endpoint.getUsername());
+            http.getAuthorization().setPassword(m_endpoint.getPassword());
+        } else if (m_endpoint.isBasicAuth()) {
             LOG.debug("Enabling basic authentication.");
             http.setAuthSupplier(new DefaultBasicAuthSupplier());
             http.getAuthorization().setUserName(m_endpoint.getUsername());
@@ -370,9 +378,6 @@ public class CXFWSManClient implements WSManClient {
 
             requestContext.put(BindingProvider.USERNAME_PROPERTY, m_endpoint.getUsername());
             requestContext.put(BindingProvider.PASSWORD_PROPERTY, m_endpoint.getPassword());
-        } else if (m_endpoint.isGSSAuth()) {
-            LOG.debug("Enabling GSS authentication.");
-            http.getAuthorization().setAuthorizationType(HttpAuthHeader.AUTH_TYPE_NEGOTIATE);
         }
 
         // Set the Reply-To header to the anonymous address
