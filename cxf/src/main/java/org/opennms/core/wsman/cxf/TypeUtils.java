@@ -120,7 +120,7 @@ public class TypeUtils {
                                             }
                                         }
 
-                                        items.add(document);
+                                        items.add(rootElement);
                                     }
                                 }
                             } else {

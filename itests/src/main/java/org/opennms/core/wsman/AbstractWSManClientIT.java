@@ -23,6 +23,7 @@ import org.opennms.core.wsman.WSManEndpoint;
 import org.opennms.core.wsman.exceptions.InvalidResourceURI;
 import org.opennms.core.wsman.exceptions.UnauthorizedException;
 import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
@@ -186,10 +187,8 @@ public abstract class AbstractWSManClientIT {
         dumpRequestsToStdout();
 
         assertEquals(1, nodes.size());
-
-        XMLTag tag = XMLDoc.from(nodes.get(0), true);
-        int inputVoltage = Integer.valueOf(tag.gotoChild("n1:InputVoltage").getText());
-        assertEquals(120, inputVoltage);
+        Map<String, String> props = toMap(nodes.get(0));
+        assertEquals(Integer.valueOf(120), Integer.valueOf(props.get("InputVoltage")));
     }
 
     @Test
@@ -209,9 +208,25 @@ public abstract class AbstractWSManClientIT {
         dumpRequestsToStdout();
 
         assertEquals(1, nodes.size());
+        Map<String, String> props = toMap(nodes.get(0));
+        assertEquals("A:", props.get("Name"));
+        assertEquals("", props.get("Size"));
+    }
 
-        XMLTag tag = XMLDoc.from(nodes.get(0), true);
-        assertEquals("A:", tag.gotoChild("Name").getText());
+    private static Map<String, String> toMap(Node node) {
+        Map<String, String> map = Maps.newHashMap();
+        // Parse the values from the child nodes
+        NodeList children = node.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+
+            if (child.getLocalName() == null || child.getTextContent() == null) {
+                continue;
+            }
+
+            map.put(child.getLocalName(), child.getTextContent());
+        }
+        return map;
     }
 
     @Test
