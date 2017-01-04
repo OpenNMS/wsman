@@ -1,5 +1,5 @@
 /*
- * Copyright 2015, The OpenNMS Group
+ * Copyright 2017, The OpenNMS Group
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -190,6 +190,28 @@ public abstract class AbstractWSManClientIT {
         XMLTag tag = XMLDoc.from(nodes.get(0), true);
         int inputVoltage = Integer.valueOf(tag.gotoChild("n1:InputVoltage").getText());
         assertEquals(120, inputVoltage);
+    }
+
+    @Test
+    public void canEnumerateAndPullFragmentUsingWQLFilter() throws InterruptedException {
+        stubFor(post(urlEqualTo("/wsman"))
+                .willReturn(aResponse()
+                    .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
+                    .withBodyFile("optimized-enum-response-with-fragment.xml")));
+
+        List<Node> nodes = Lists.newArrayList();
+        client.enumerateAndPullUsingFilter("http://schemas.microsoft.com/wbem/wsman/1/wmi/root/cimv2/*",
+                "select Name, Size, FreeSpace FROM Win32_LogicalDisk",
+                WSManConstants.XML_NS_WQL_DIALECT,
+                nodes,
+                false);
+
+        dumpRequestsToStdout();
+
+        assertEquals(1, nodes.size());
+
+        XMLTag tag = XMLDoc.from(nodes.get(0), true);
+        assertEquals("A:", tag.gotoChild("Name").getText());
     }
 
     @Test

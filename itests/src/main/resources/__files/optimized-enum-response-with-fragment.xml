@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:n="http://schemas.xmlsoap.org/ws/2004/09/enumeration" xmlns:w="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xml:lang="de-DE">
+  <s:Header>
+    <!-- Remove the WS-Addressing headers since we can't currently mock the RelatesTo and MessageID headers
+    <a:Action>http://schemas.xmlsoap.org/ws/2004/09/enumeration/EnumerateResponse</a:Action>
+    <a:MessageID>uuid:50441853-BB09-45C1-A65B-9E9A25BE22C2</a:MessageID>
+    <a:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:To>
+    <a:RelatesTo>urn:uuid:8fe767f7-f459-43e5-b785-dddcf1132341</a:RelatesTo>
+    -->
+  </s:Header>
+  <s:Body>
+    <n:EnumerateResponse>
+      <n:EnumerationContext>uuid:7224A619-B170-420D-A625-ADECA5875BF6</n:EnumerationContext>
+      <w:Items>
+        <w:XmlFragment xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:w="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:m="http://schemas.microsoft.com/wbem/wsman/1/wsman.xsd">
+          <FreeSpace xsi:nil="true"/>
+          <Name>A:</Name>
+          <Size xsi:nil="true"/>
+        </w:XmlFragment>
+      </w:Items>
+      <n:EndOfSequence />
+    </n:EnumerateResponse>
+  </s:Body>
+</s:Envelope>

@@ -7,11 +7,15 @@ import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
 import javax.xml.namespace.QName;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.dom.DOMResult;
 
 import org.opennms.core.wsman.WSManConstants;
 import org.opennms.core.wsman.exceptions.WSManException;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.xmlsoap.schemas.ws._2004._09.enumeration.EnumerateResponse;
 import org.xmlsoap.schemas.ws._2004._09.enumeration.EnumerationContextType;
@@ -19,6 +23,7 @@ import org.xmlsoap.schemas.ws._2004._09.enumeration.PullResponse;
 import org.xmlsoap.schemas.ws._2004._09.transfer.TransferElement;
 
 import schemas.dmtf.org.wbem.wsman.v1.AnyListType;
+import schemas.dmtf.org.wbem.wsman.v1.MixedDataType;
 
 /**
  * Utility functions for manipulating WS-Man specific types.
@@ -34,6 +39,9 @@ public class TypeUtils {
     private final static QName WSEN_EndOfSequence_QNAME = new QName(WSManConstants.XML_NS_WS_2004_09_ENUMERATION, "EndOfSequence");
     private final static QName WSMAN_Items_QNAME = new QName(WSManConstants.XML_NS_DMTF_WSMAN_V1, "Items");
     private final static QName WSMAN_EndOfSequence_QNAME = new QName(WSManConstants.XML_NS_DMTF_WSMAN_V1, "EndOfSequence");
+    private final static QName WSMAN_XmlFragment_QNAME = new QName(WSManConstants.XML_NS_DMTF_WSMAN_V1, "XmlFragment");
+
+    private final static DocumentBuilderFactory DOCUMENT_BUILDER_FACTORY = DocumentBuilderFactory.newInstance();
 
     protected static String getContextIdFrom(EnumerateResponse response) {
         // A valid response must always include the EnumerationContext element
@@ -90,8 +98,33 @@ public class TypeUtils {
                             if (item instanceof Node) {
                                 Node node = (Node)item;
                                 items.add(node);
+                            } else if (item instanceof JAXBElement) {
+                                final JAXBElement<?> nestedEl = (JAXBElement<?>)item;
+                                if (WSMAN_XmlFragment_QNAME.equals(nestedEl.getName())) {
+                                    if (!nestedEl.isNil() && nestedEl.getValue() instanceof MixedDataType) {
+                                        // Create a new document/node that contains the elements within the fragment
+                                        Document document = createNewDocument();
+                                        Element rootElement = document.createElementNS(WSMAN_XmlFragment_QNAME.getNamespaceURI(), WSMAN_XmlFragment_QNAME.getLocalPart());
+                                        document.appendChild(rootElement);
+
+                                        MixedDataType mixed = (MixedDataType)nestedEl.getValue();
+                                        for (Object nestedItem : mixed.getContent()) {
+                                            if (nestedItem instanceof String) {
+                                                // Skip over whitespace
+                                            } else if (nestedItem instanceof Node) {
+                                                // Node's can't belong to two different documents, so we need to import it first
+                                                Node nestedNode = document.importNode((Node)nestedItem, true);
+                                                rootElement.appendChild(nestedNode);
+                                            } else {
+                                                throw new WSManException(String.format("Unsupported element of type %s in XmlFragment: %s", nestedItem.getClass(), nestedItem));
+                                            }
+                                        }
+
+                                        items.add(document);
+                                    }
+                                }
                             } else {
-                                throw new WSManException(String.format("Unsupported element in EnumerateResponse: %s", object));
+                                throw new WSManException(String.format("Unsupported element of type %s in EnumerateResponse: %s", object.getClass(), object));
                             }
                         }
                     } else {
@@ -117,6 +150,20 @@ public class TypeUtils {
             }
         }
         return endOfSequence;
+    }
+
+    private static Document createNewDocument() {
+        final DocumentBuilder builder;
+        // The DocumentBuilderFactory provides no guarantees on thread safety
+        // so we lock it in order to avoid creating new or separate instances per thread
+        synchronized(DOCUMENT_BUILDER_FACTORY) {
+            try {
+                builder = DOCUMENT_BUILDER_FACTORY.newDocumentBuilder();
+            } catch (ParserConfigurationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return builder.newDocument();
     }
 
     protected static boolean getItemsFrom(PullResponse response, List<Node> items) {
