@@ -3,7 +3,7 @@
   <groupId>org.opennms.core</groupId>
   <artifactId>org.opennms.core.wsman</artifactId>
   <packaging>pom</packaging>
-  <version>1.2.0</version>
+  <version>1.2.1-SNAPSHOT</version>
   <name>OpenNMS :: Core :: WS-Man</name>
   <url>https://github.com/OpenNMS/wsman</url>
   <description>A pure Java WS-Man client implemented using JAX-WS &amp; CXF</description>
@@ -18,7 +18,7 @@
   <scm>
     <url>https://github.com/OpenNMS/wsman</url>
     <connection>scm:git:git@github.com:OpenNMS/wsman.git</connection>
-    <tag>v1.2.0</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <developers>
