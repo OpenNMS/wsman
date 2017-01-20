@@ -95,36 +95,11 @@ public class TypeUtils {
                         // 0+ items
                         AnyListType itemList = (AnyListType)el.getValue();
                         for (Object item : itemList.getAny()) {
-                            if (item instanceof Node) {
-                                Node node = (Node)item;
-                                items.add(node);
-                            } else if (item instanceof JAXBElement) {
-                                final JAXBElement<?> nestedEl = (JAXBElement<?>)item;
-                                if (WSMAN_XmlFragment_QNAME.equals(nestedEl.getName())) {
-                                    if (!nestedEl.isNil() && nestedEl.getValue() instanceof MixedDataType) {
-                                        // Create a new document/node that contains the elements within the fragment
-                                        Document document = createNewDocument();
-                                        Element rootElement = document.createElementNS(WSMAN_XmlFragment_QNAME.getNamespaceURI(), WSMAN_XmlFragment_QNAME.getLocalPart());
-                                        document.appendChild(rootElement);
-
-                                        MixedDataType mixed = (MixedDataType)nestedEl.getValue();
-                                        for (Object nestedItem : mixed.getContent()) {
-                                            if (nestedItem instanceof String) {
-                                                // Skip over whitespace
-                                            } else if (nestedItem instanceof Node) {
-                                                // Node's can't belong to two different documents, so we need to import it first
-                                                Node nestedNode = document.importNode((Node)nestedItem, true);
-                                                rootElement.appendChild(nestedNode);
-                                            } else {
-                                                throw new WSManException(String.format("Unsupported element of type %s in XmlFragment: %s", nestedItem.getClass(), nestedItem));
-                                            }
-                                        }
-
-                                        items.add(rootElement);
-                                    }
-                                }
-                            } else {
+                            final Node node = toNode(item);
+                            if (node == null) {
                                 throw new WSManException(String.format("Unsupported element of type %s in EnumerateResponse: %s", object.getClass(), object));
+                            } else {
+                                items.add(node);
                             }
                         }
                     } else {
@@ -166,13 +141,45 @@ public class TypeUtils {
         return builder.newDocument();
     }
 
+    protected static Node toNode(Object item) {
+        if (item instanceof Node) {
+            return (Node)item;
+        } else if (item instanceof JAXBElement) {
+            final JAXBElement<?> nestedEl = (JAXBElement<?>)item;
+            if (WSMAN_XmlFragment_QNAME.equals(nestedEl.getName())) {
+                if (!nestedEl.isNil() && nestedEl.getValue() instanceof MixedDataType) {
+                    // Create a new document/node that contains the elements within the fragment
+                    Document document = createNewDocument();
+                    Element rootElement = document.createElementNS(WSMAN_XmlFragment_QNAME.getNamespaceURI(), WSMAN_XmlFragment_QNAME.getLocalPart());
+                    document.appendChild(rootElement);
+
+                    MixedDataType mixed = (MixedDataType)nestedEl.getValue();
+                    for (Object nestedItem : mixed.getContent()) {
+                        if (nestedItem instanceof String) {
+                            // Skip over whitespace
+                        } else if (nestedItem instanceof Node) {
+                            // Node's can't belong to two different documents, so we need to import it first
+                            Node nestedNode = document.importNode((Node)nestedItem, true);
+                            rootElement.appendChild(nestedNode);
+                        } else {
+                            throw new WSManException(String.format("Unsupported element of type %s in XmlFragment: %s", nestedItem.getClass(), nestedItem));
+                        }
+                    }
+                    return rootElement;
+                }
+            }
+        }
+        return null;
+    }
+
     protected static boolean getItemsFrom(PullResponse response, List<Node> items) {
         for (Object item : response.getItems().getAny()) {
-            if (item instanceof Node) {
-                items.add((Node)item);
-            } else {
+            final Node node = toNode(item);
+            if (node == null) {
                 throw new WSManException(String.format("The pull response contains an unsupported item %s of type %s",
                         item, item != null ? item.getClass() : null));
+            } else {
+                items.add(node);
             }
         }
         return response.getEndOfSequence() != null;

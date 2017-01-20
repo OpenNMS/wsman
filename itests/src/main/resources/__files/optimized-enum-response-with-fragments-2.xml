@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:n="http://schemas.xmlsoap.org/ws/2004/09/enumeration" xmlns:w="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xml:lang="de-DE">
+  <s:Header>
+    <!-- Remove the WS-Addressing headers since we can't currently mock the RelatesTo and MessageID headers
+    <a:Action>http://schemas.xmlsoap.org/ws/2004/09/enumeration/PullResponse</a:Action>
+    <a:MessageID>uuid:8AD44EE3-FC79-4374-BD91-24226AF10139</a:MessageID>
+    <a:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:To>
+    <a:RelatesTo>urn:uuid:8866220b-98f0-4c17-a653-2558b40e98c5</a:RelatesTo>
+    -->
+  </s:Header>
+  <s:Body>
+    <n:PullResponse>
+      <n:Items>
+        <w:XmlFragment xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:w="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:m="http://schemas.microsoft.com/wbem/wsman/1/wsman.xsd">
+          <FreeSpace>44395380736</FreeSpace>
+          <Name>C:</Name>
+          <Size>64412164096</Size>
+        </w:XmlFragment>
+        <w:XmlFragment xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:w="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:m="http://schemas.microsoft.com/wbem/wsman/1/wsman.xsd">
+          <FreeSpace>30545928192</FreeSpace>
+          <Name>D:</Name>
+          <Size>64421359616</Size>
+        </w:XmlFragment>
+        <w:XmlFragment xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:w="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xmlns:m="http://schemas.microsoft.com/wbem/wsman/1/wsman.xsd">
+          <FreeSpace xsi:nil="true"/>
+          <Name>E:</Name>
+          <Size xsi:nil="true"/>
+        </w:XmlFragment>
+      </n:Items>
+      <n:EndOfSequence/>
+    </n:PullResponse>
+  </s:Body>
+</s:Envelope>

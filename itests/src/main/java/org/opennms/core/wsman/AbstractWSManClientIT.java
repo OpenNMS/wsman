@@ -193,10 +193,18 @@ public abstract class AbstractWSManClientIT {
 
     @Test
     public void canEnumerateAndPullFragmentUsingWQLFilter() throws InterruptedException {
-        stubFor(post(urlEqualTo("/wsman"))
+        stubFor(post(urlEqualTo("/wsman")).inScenario("Enum and pull fragments")
+                .whenScenarioStateIs(Scenario.STARTED)
                 .willReturn(aResponse()
                     .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
-                    .withBodyFile("optimized-enum-response-with-fragment.xml")));
+                    .withBodyFile("optimized-enum-response-with-fragments-1.xml"))
+                .willSetStateTo("Pull"));
+
+        stubFor(post(urlEqualTo("/wsman")).inScenario("Enum and pull fragments")
+                .whenScenarioStateIs("Pull")
+                .willReturn(aResponse()
+                    .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
+                    .withBodyFile("optimized-enum-response-with-fragments-2.xml")));
 
         List<Node> nodes = Lists.newArrayList();
         client.enumerateAndPullUsingFilter("http://schemas.microsoft.com/wbem/wsman/1/wmi/root/cimv2/*",
@@ -207,10 +215,14 @@ public abstract class AbstractWSManClientIT {
 
         dumpRequestsToStdout();
 
-        assertEquals(1, nodes.size());
+        assertEquals(4, nodes.size());
         Map<String, String> props = toMap(nodes.get(0));
         assertEquals("A:", props.get("Name"));
         assertEquals("", props.get("Size"));
+
+        props = toMap(nodes.get(2));
+        assertEquals("D:", props.get("Name"));
+        assertEquals("64421359616", props.get("Size"));
     }
 
     private static Map<String, String> toMap(Node node) {
