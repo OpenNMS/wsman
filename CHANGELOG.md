@@ -1,3 +1,7 @@
+### 1.2.1
+
+* Added support for handling XmlFragment elements in pull responses.
+
 ### 1.2.0
 
 * Fixed GSS authentication.
