@@ -17,7 +17,7 @@ Artifacts are available in Maven Central. Add it to your Maven project using:
 <dependency>
   <groupId>org.opennms.core.wsman</groupId>
   <artifactId>org.opennms.core.wsman.cxf</artifactId>
-  <version>1.2.0</version>
+  <version>1.2.1</version>
 </dependency>
 ```
 
