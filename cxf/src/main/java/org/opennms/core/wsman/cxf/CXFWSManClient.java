@@ -148,10 +148,13 @@ public class CXFWSManClient implements WSManClient {
 
     @Override
     public Identity identify() {
+        final IdentifyOperations identifier = getIdentifier();
         try {
-            return new IdentifyResponseWrapper(getIdentifier().identify(new IdentifyType()));
+            return new IdentifyResponseWrapper(identifier.identify(new IdentifyType()));
         } catch (RuntimeException e) {
             throw wrapException(e);
+        } finally {
+            ClientProxy.getClient(identifier).destroy();
         }
     }
 
@@ -190,10 +193,13 @@ public class CXFWSManClient implements WSManClient {
             enumerate.getAny().add(maxElements);
         }
 
+        final EnumerationOperations enumerator = getEnumerator(resourceUri);
         try {
-            return getEnumerator(resourceUri).enumerate(enumerate);
+            return enumerator.enumerate(enumerate);
         } catch (RuntimeException e) {
             throw wrapException(e);
+        } finally {
+            ClientProxy.getClient(enumerator).destroy();
         }
     }
 
@@ -246,11 +252,14 @@ public class CXFWSManClient implements WSManClient {
         }
 
         // Issue the pull
+        final EnumerationOperations enumerator = getEnumerator(resourceUri);
         PullResponse response = null;
         try {
-            response = getEnumerator(resourceUri).pull(pull);
+            response = enumerator.pull(pull);
         } catch (RuntimeException e) {
             throw wrapException(e);
+        } finally {
+            ClientProxy.getClient(enumerator).destroy();
         }
         if (response == null) {
             throw new WSManException(String.format("Pull failed for context id: %s. See logs for details.", contextId));
@@ -281,12 +290,14 @@ public class CXFWSManClient implements WSManClient {
     @Override
     public Node get(String resourceUri, Map<String, String> selectors) {
         String elementType = TypeUtils.getElementTypeFromResourceUri(resourceUri);
-        TransferOperations transferer = getTransferer(resourceUri, elementType, selectors);
-        TransferElement transferElement = null;
+        final TransferOperations transferer = getTransferer(resourceUri, elementType, selectors);
+        TransferElement transferElement;
         try {
             transferElement = transferer.get();
         } catch (RuntimeException e) {
             throw wrapException(e);
+        } finally {
+            ClientProxy.getClient(transferer).destroy();
         }
         if (transferElement == null) {
             // Note that fault should be thrown if the object doesn't exist
