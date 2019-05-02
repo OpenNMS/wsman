@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:n="http://schemas.xmlsoap.org/ws/2004/09/enumeration" xmlns:w="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" xml:lang="de-DE">
   <s:Header>
-    <!-- Remove the WS-Addressing headers since we can't currently mock the RelatesTo and MessageID headers
     <a:Action>http://schemas.xmlsoap.org/ws/2004/09/enumeration/EnumerateResponse</a:Action>
     <a:MessageID>uuid:5DA03D25-A4CB-405F-A05E-767A191DA68C</a:MessageID>
     <a:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:To>
-    <a:RelatesTo>urn:uuid:9efb8ac6-838b-4dd3-bcba-4e07de4d3252</a:RelatesTo>
-    -->
+    <a:RelatesTo>{{ xPath request.body '/Envelope/Header/MessageID/text()' }}</a:RelatesTo>
   </s:Header>
   <s:Body>
     <n:EnumerateResponse>

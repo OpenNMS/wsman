@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:n1="http://schemas.dell.com/wbem/wscim/1/cim-schema/2/DCIM_ComputerSystem" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
    <s:Header>
-      <!-- Remove the WS-Addressing headers since we can't currently mock the RelatesTo and MessageID headers
       <wsa:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:To>
       <wsa:Action>http://schemas.xmlsoap.org/ws/2004/09/transfer/GetResponse</wsa:Action>
-      <wsa:RelatesTo>uuid:c400f551-26de-16de-8002-303180ea2ae8</wsa:RelatesTo>
+      <wsa:RelatesTo>{{ xPath request.body '/Envelope/Header/MessageID/text()' }}</wsa:RelatesTo>
       <wsa:MessageID>uuid:937cf719-26da-16da-8107-c115cfb5fe14</wsa:MessageID>
-      -->
    </s:Header>
    <s:Body>
       <n1:DCIM_ComputerSystem>

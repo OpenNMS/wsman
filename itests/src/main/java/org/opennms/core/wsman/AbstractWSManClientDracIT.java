@@ -18,7 +18,6 @@ package org.opennms.core.wsman;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -26,18 +25,15 @@ import java.util.Map;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.opennms.core.wsman.WSManClientFactory;
-import org.opennms.core.wsman.WSManEndpoint;
 import org.opennms.core.wsman.utils.TestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.mycila.xmltool.XMLDoc;
 import com.mycila.xmltool.XMLTag;
-
-import wiremock.com.google.common.collect.Lists;
-import wiremock.com.google.common.collect.Maps;
 
 /**
  * This test connects to an iDrac device using the properties
@@ -81,7 +77,7 @@ public abstract class AbstractWSManClientDracIT {
     }
 
     @Test
-    public void canGetSystemPrimaryStatus() throws FileNotFoundException, IOException {
+    public void canGetSystemPrimaryStatus() {
         Map<String, String> selectors = Maps.newHashMap();
         selectors.put("CreationClassName", "DCIM_ComputerSystem");
         selectors.put("Name", "srv:system");

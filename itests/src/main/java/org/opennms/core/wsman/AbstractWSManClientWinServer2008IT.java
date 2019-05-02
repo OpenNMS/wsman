@@ -24,14 +24,13 @@ import java.util.List;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.opennms.core.wsman.WSManClientFactory;
-import org.opennms.core.wsman.WSManEndpoint;
 import org.opennms.core.wsman.utils.TestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
 
-import wiremock.com.google.common.collect.Lists;
+import com.google.common.collect.Lists;
+
 /**
  * This test connects to an instance of Windows Servier 2008
  * using the properties stored in ~/wsman.properties.
