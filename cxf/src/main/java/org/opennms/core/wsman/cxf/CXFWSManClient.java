@@ -28,7 +28,9 @@ import javax.xml.bind.JAXBElement;
 import javax.xml.namespace.QName;
 import javax.xml.ws.BindingProvider;
 
+import org.apache.cxf.Bus;
 import org.apache.cxf.binding.soap.SoapBindingConstants;
+import org.apache.cxf.bus.extension.ExtensionManagerBus;
 import org.apache.cxf.configuration.jsse.TLSClientParameters;
 import org.apache.cxf.endpoint.Client;
 import org.apache.cxf.frontend.ClientProxy;
@@ -154,7 +156,7 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            ClientProxy.getClient(identifier).destroy();
+            destroy(identifier);
         }
     }
 
@@ -199,7 +201,7 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            ClientProxy.getClient(enumerator).destroy();
+            destroy(enumerator);
         }
     }
 
@@ -259,7 +261,7 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            ClientProxy.getClient(enumerator).destroy();
+            destroy(enumerator);
         }
         if (response == null) {
             throw new WSManException(String.format("Pull failed for context id: %s. See logs for details.", contextId));
@@ -297,7 +299,7 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            ClientProxy.getClient(transferer).destroy();
+            destroy(transferer);
         }
         if (transferElement == null) {
             // Note that fault should be thrown if the object doesn't exist
@@ -306,15 +308,18 @@ public class CXFWSManClient implements WSManClient {
         return TypeUtils.transferElementToNode(transferElement, resourceUri, elementType);
     }
 
-    /**
-     * Creates a proxy service for the given JAX-WS annotated interface.
-     */
-    private <ProxyServiceType> ProxyServiceType createProxyFor(Class<ProxyServiceType> serviceClass,
-            Map<String, String> outTransformMap, Map<String, String> inTransformMap) {
+    private JaxWsProxyFactoryBean createFactoryFor(Class<?> clazz) {
         // Setup the factory
         JaxWsProxyFactoryBean factory = new JaxWsProxyFactoryBean();
-        factory.setServiceClass(serviceClass);
+        factory.setServiceClass(clazz);
         factory.setAddress(m_endpoint.getUrl().toExternalForm());
+
+        // Create a new ExtensionManagerBus to be used by this factory
+        // This is necessary since the bus holds a reference to the org.apache.cxf.ws.policy.PolicyRegistryImpl, which contains
+        // policies created by the Wsdl11AttachmentPolicyProvider, which are never removed. If we don't create our own
+        // bus, the same instance will be shared across all factories, and the policies will continue to accumulate.
+        Bus bus = new ExtensionManagerBus(null, null, Bus.class.getClassLoader());
+        factory.setBus(bus);
 
         WSAddressingFeature feature = new WSAddressingFeature();
         feature.setResponses(AddressingResponses.ANONYMOUS);
@@ -323,9 +328,16 @@ public class CXFWSManClient implements WSManClient {
         // Force the client to use SOAP v1.2, as per:
         // R13.1-1: A service shall at least receive and send SOAP 1.2 SOAP Envelopes.
         factory.setBindingId(SoapBindingConstants.SOAP12_BINDING_ID);
+        return factory;
+    }
 
+    /**
+     * Creates a proxy service for the given JAX-WS annotated interface.
+     */
+    private <ProxyServiceType> ProxyServiceType createProxyFor(Class<ProxyServiceType> serviceClass,
+            Map<String, String> outTransformMap, Map<String, String> inTransformMap) {
         // Create the proxy service
-        ProxyServiceType proxyService = factory.create(serviceClass);
+        final ProxyServiceType proxyService = createFactoryFor(serviceClass).create(serviceClass);
 
         // Retrieve the underlying client, so we can fine tune it
         Client cxfClient = ClientProxy.getClient(proxyService);
@@ -435,7 +447,7 @@ public class CXFWSManClient implements WSManClient {
         return proxyService;
     }
  
-    private static AddressingProperties createAddressingPropertiesMap() {
+    private AddressingProperties createAddressingPropertiesMap() {
         AddressingProperties maps = new AddressingProperties();
         AttributedURIType address = WSA_OBJECT_FACTORY.createAttributedURIType();
         EndpointReferenceType ref = WSA_OBJECT_FACTORY.createEndpointReferenceType();
@@ -475,5 +487,16 @@ public class CXFWSManClient implements WSManClient {
             throw new HTTPException(e);
         }
         return new WSManException(e);
+    }
+
+    /**
+     * Cleanup and and destroy a JAX-WS proxy object.
+     *
+     * @param proxy the proxy to destroy
+     */
+    private static void destroy(Object proxy) {
+        // Destroy the client associated with the proxy
+        final Client client = ClientProxy.getClient(proxy);
+        client.destroy();
     }
 }
