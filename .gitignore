@@ -12,6 +12,7 @@ bin/
 .project
 java/bin/
 *.swp
+*.iml
 
 dependency-reduced-pom.xml
 release.properties

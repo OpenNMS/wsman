@@ -1,6 +1,4 @@
-[![Build Status](https://travis-ci.org/OpenNMS/wsman.svg?branch=master)](https://travis-ci.org/OpenNMS/wsman) [![codecov.io](https://codecov.io/github/OpenNMS/wsman/coverage.svg?branch=master)](https://codecov.io/github/OpenNMS/wsman?branch=master)
-
-# WS-Man Client
+# WS-Man Client [![CircleCI](https://circleci.com/gh/OpenNMS/wsman?style=svg)](https://circleci.com/gh/OpenNMS/wsman)
 
 A pure Java WS-Man client implemented using JAX-WS & CXF with support for:
 * Enumerate and Pull Operations (DSP8037)
