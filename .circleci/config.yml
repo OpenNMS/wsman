@@ -29,7 +29,7 @@ jobs:
       - run:
           name: Compile and run the tests
           command: |
-            mvn -DskipITs=false clean install test integration-test
+            mvn -DskipITs=false clean install test failsafe:integration-test
 
       - run:
           name: Save test results
