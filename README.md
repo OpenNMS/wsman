@@ -1,4 +1,4 @@
-# WS-Man Client [![CircleCI](https://circleci.com/gh/OpenNMS/wsman?style=svg)](https://circleci.com/gh/OpenNMS/wsman)
+# WS-Man Client [![CircleCI](https://circleci.com/gh/OpenNMS/wsman.svg?style=svg)](https://circleci.com/gh/OpenNMS/wsman)
 
 A pure Java WS-Man client implemented using JAX-WS & CXF with support for:
 * Enumerate and Pull Operations (DSP8037)
