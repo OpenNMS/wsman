@@ -15,26 +15,13 @@
  */
 package org.opennms.core.wsman;
 
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.opennms.core.wsman.WSManEndpoint;
-import org.opennms.core.wsman.exceptions.InvalidResourceURI;
-import org.opennms.core.wsman.exceptions.UnauthorizedException;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-
-import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-import com.github.tomakehurst.wiremock.junit.WireMockRule;
-import com.github.tomakehurst.wiremock.stubbing.Scenario;
-import com.mycila.xmltool.XMLDoc;
-import com.mycila.xmltool.XMLTag;
-
-import wiremock.com.google.common.collect.Lists;
-import wiremock.com.google.common.collect.Maps;
-
-import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.findAll;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -54,6 +41,24 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.Test;
+import org.opennms.core.wsman.exceptions.InvalidResourceURI;
+import org.opennms.core.wsman.exceptions.UnauthorizedException;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.github.tomakehurst.wiremock.extension.responsetemplating.ResponseTemplateTransformer;
+import com.github.tomakehurst.wiremock.junit.WireMockRule;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.mycila.xmltool.XMLDoc;
+import com.mycila.xmltool.XMLTag;
+
 /**
  * This test connects to a local HTTP server provided
  * by WireMock that returns static content.
@@ -67,6 +72,7 @@ public abstract class AbstractWSManClientIT {
     @Rule
     public WireMockRule wireMockRule = new WireMockRule(WireMockConfiguration.wireMockConfig()
             .withRootDirectory(Paths.get("..", "itests", "src", "main", "resources").toString())
+            .extensions(new ResponseTemplateTransformer(true))
             .dynamicPort());
 
     private WSManClient client;
