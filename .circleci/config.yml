@@ -18,18 +18,15 @@ jobs:
           # fallback to using the latest cache if no exact match is found
           - v1-dependencies-
 
-      - run: |
-           mvn -DskipTests clean install dependency:resolve-plugins dependency:go-offline || true
+      - run:
+          name: Compile and run the tests
+          command: |
+            mvn -DskipITs=false clean install test failsafe:integration-test
 
       - save_cache:
           paths:
             - ~/.m2
           key: v1-dependencies-{{ checksum "pom.xml" }}
-
-      - run:
-          name: Compile and run the tests
-          command: |
-            mvn -DskipITs=false clean install test failsafe:integration-test
 
       - run:
           name: Save test results
