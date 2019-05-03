@@ -21,7 +21,8 @@ jobs:
       - run:
           name: Compile and run the tests
           command: |
-            mvn -DskipITs=false clean install test failsafe:integration-test
+            mvn clean package
+            mvn -DskipITs=false test failsafe:integration-test
 
       - save_cache:
           paths:
@@ -38,6 +39,9 @@ jobs:
 
       - store_test_results:
           path: ~/junit
+
+      - store_artifacts:
+          path: cli/target/org.opennms.core.wsman.cli-*.jar
 
 workflows:
   version: 2
