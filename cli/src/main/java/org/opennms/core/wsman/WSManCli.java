@@ -44,9 +44,10 @@ import com.google.common.collect.Lists;
 public class WSManCli {
     private static Logger LOG = LoggerFactory.getLogger(WSManCli.class);
 
-    public static enum WSManOperation {
+    public enum WSManOperation {
         GET,
-        ENUM
+        ENUM,
+        IDENTIFY
     }
 
     @Option(name="-r", usage="remote url", metaVar="url", required=true)
@@ -129,7 +130,7 @@ public class WSManCli {
         WSManEndpoint endpoint = builder.build();
         LOG.info("Using endpoint: {}", endpoint);
         WSManClient client = clientFactory.getClient(endpoint);
-        
+
         if (operation == WSManOperation.ENUM) {
             List<Node> nodes = Lists.newLinkedList();
             if (arguments.isEmpty()) {
@@ -155,6 +156,10 @@ public class WSManCli {
 
             // Dump the node to stdout
             dumpNodeToStdout(node);
+        } else if (operation == WSManOperation.IDENTIFY) {
+            LOG.info("Issuing IDENTIFY");
+            Identity identity = client.identify();
+            LOG.info("IDENTIFY successful: {}", identity);
         }
     }
 
