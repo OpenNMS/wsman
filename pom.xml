@@ -52,6 +52,8 @@
     <log4jVersion>2.5</log4jVersion>
     <junitVersion>4.12</junitVersion>
     <wiremockVersion>2.23.2</wiremockVersion>
+    <jaxbVersion>2.3.2</jaxbVersion>
+    <activationVersion>1.1.1</activationVersion>
   </properties>
 
   <build>
