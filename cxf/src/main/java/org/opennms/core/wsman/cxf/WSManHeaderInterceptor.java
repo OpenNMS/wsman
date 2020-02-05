@@ -18,8 +18,8 @@ package org.opennms.core.wsman.cxf;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
@@ -43,6 +43,15 @@ import schemas.dmtf.org.wbem.wsman.v1.SelectorType;
  * @author jwhite
  */
 public class WSManHeaderInterceptor extends AbstractSoapInterceptor {
+    private static final JAXBDataBinding ATTRIBUTABLE_URI_JAXB_DATA_BINDING;
+    static {
+        try {
+            ATTRIBUTABLE_URI_JAXB_DATA_BINDING = new JAXBDataBinding(AttributableURI.class);
+        } catch (JAXBException e) {
+            throw new RuntimeException("Failed to create JAXBDataBinding for: " + AttributableURI.class, e);
+        }
+    }
+
     private final String m_resourceUri;
     private final Map<String, String> m_selectors;
     private final ObjectFactory factory = new ObjectFactory();
@@ -75,11 +84,7 @@ public class WSManHeaderInterceptor extends AbstractSoapInterceptor {
         AttributableURI uri = new AttributableURI();
         uri.setValue(m_resourceUri);
         JAXBElement<AttributableURI> resourceURI = factory.createResourceURI(uri);
-        try {
-            return new Header(resourceURI.getName(), resourceURI, new JAXBDataBinding(AttributableURI.class));
-        } catch (JAXBException e) {
-            throw new RuntimeException(e);
-        }
+        return new Header(resourceURI.getName(), resourceURI, ATTRIBUTABLE_URI_JAXB_DATA_BINDING);
     }
 
     private Header getSelectorSetHeader() {
