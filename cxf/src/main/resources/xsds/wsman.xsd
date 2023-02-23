@@ -21,7 +21,7 @@ Change Requests:
     elementFormDefault="qualified" version="1.0.0e">
 
   <xs:import namespace="http://schemas.xmlsoap.org/ws/2004/08/addressing"
-             schemaLocation="http://schemas.xmlsoap.org/ws/2004/08/addressing"/>
+             schemaLocation="https://schemasxmlsoap.azurewebsites.net/ws/2004/08/addressing/"/>
   <xs:import namespace="http://www.w3.org/XML/1998/namespace" 
              schemaLocation="http://www.w3.org/2001/xml.xsd"/>
 
