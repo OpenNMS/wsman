@@ -44,7 +44,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <javaVersion>1.8</javaVersion>
-    <cxfVersion>3.5.5</cxfVersion>
+    <cxfVersion>3.4.10</cxfVersion>
     <slf4jVersion>1.7.36</slf4jVersion>
     <guavaVersion>25.1-jre</guavaVersion>
     <args4jVersion>2.33</args4jVersion>
