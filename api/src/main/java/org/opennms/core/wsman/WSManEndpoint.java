@@ -34,6 +34,8 @@ public class WSManEndpoint {
     private final String username;
     private final String password;
     private final boolean gssAuth;
+    private final boolean basicAuth;
+    private final boolean digestAuth;
     private final boolean strictSSL;
     private final WSManVersion serverVersion;
     private final Integer maxElements;
@@ -46,6 +48,8 @@ public class WSManEndpoint {
         username = builder.username;
         password = builder.password;
         gssAuth = builder.gssAuth;
+        basicAuth = builder.basicAuth;
+        digestAuth = builder.digestAuth;
         strictSSL = builder.strictSSL;
         serverVersion = builder.serverVersion;
         maxElements = builder.maxElements;
@@ -60,6 +64,8 @@ public class WSManEndpoint {
        private String username;
        private String password;
        private boolean gssAuth = false;
+       private boolean basicAuth = false;
+       private boolean digestAuth = false;
        private WSManVersion serverVersion = WSManVersion.WSMAN_1_2;
        private Integer maxElements;
        private Integer maxEnvelopeSize;
@@ -75,10 +81,18 @@ public class WSManEndpoint {
        }
 
        public Builder withBasicAuth(String username, String password) {
+           this.basicAuth = true;
            this.username = Objects.requireNonNull(username, "username cannot be null");
            this.password = Objects.requireNonNull(password, "password cannot be null");
            return this;
        }
+
+        public Builder withDigestAuth(String username, String password) {
+            this.digestAuth= true;
+            this.username = Objects.requireNonNull(username, "username cannot be null");
+            this.password = Objects.requireNonNull(password, "password cannot be null");
+            return this;
+        }
 
        public Builder withGSSAuth() {
            gssAuth = true;
@@ -137,7 +151,11 @@ public class WSManEndpoint {
     }
 
     public boolean isBasicAuth() {
-        return !isGSSAuth() && username != null;
+        return !isGSSAuth() && basicAuth && username != null;
+    }
+
+    public boolean isDigestAuth() {
+        return !isGSSAuth() && digestAuth && username != null;
     }
 
     public String getUsername() {

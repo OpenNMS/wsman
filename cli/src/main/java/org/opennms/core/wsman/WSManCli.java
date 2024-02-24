@@ -65,6 +65,9 @@ public class WSManCli {
     @Option(name="-gssAuth", usage="GSS authentication")
     private boolean gssAuth = false;
 
+    @Option(name="-digestAuth", usage="Digest authentication")
+    private boolean digestAuth = false;
+
     @Option(name="-o", usage="operation")
     WSManOperation operation = WSManOperation.ENUM;
 
@@ -126,6 +129,8 @@ public class WSManCli {
             builder.withBasicAuth(username, password);
         } else if (gssAuth) {
             builder.withGSSAuth();
+        } else if (digestAuth) {
+            builder.withDigestAuth(username, password);
         }
         WSManEndpoint endpoint = builder.build();
         LOG.info("Using endpoint: {}", endpoint);
