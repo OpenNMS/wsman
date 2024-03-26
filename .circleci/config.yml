@@ -35,6 +35,7 @@ jobs:
             mkdir -p ~/junit/
             find . -type f -regex ".*/target/failsafe-reports/.*xml" -exec cp {} ~/junit/ \;
             find . -type f -regex ".*/target/surefire-reports/.*xml" -exec cp {} ~/junit/ \;
+            find ~/junit -name failsafe-summary.xml -exec rm -f {} \;
           when: always
 
       - store_test_results:
