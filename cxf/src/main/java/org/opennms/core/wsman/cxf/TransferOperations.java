@@ -15,14 +15,14 @@
  */
 package org.opennms.core.wsman.cxf;
 
-import javax.jws.WebMethod;
-import javax.jws.WebParam;
-import javax.jws.WebResult;
-import javax.jws.WebService;
-import javax.jws.soap.SOAPBinding;
-import javax.xml.bind.annotation.XmlSeeAlso;
-import javax.xml.ws.Action;
-import javax.xml.ws.soap.Addressing;
+import jakarta.jws.WebMethod;
+import jakarta.jws.WebParam;
+import jakarta.jws.WebResult;
+import jakarta.jws.WebService;
+import jakarta.jws.soap.SOAPBinding;
+import jakarta.xml.bind.annotation.XmlSeeAlso;
+import jakarta.xml.ws.Action;
+import jakarta.xml.ws.soap.Addressing;
 
 import org.xmlsoap.schemas.ws._2004._09.transfer.ObjectFactory;
 import org.xmlsoap.schemas.ws._2004._09.transfer.TransferElement;
@@ -54,7 +54,7 @@ public interface TransferOperations {
     @Action(input = "http://schemas.xmlsoap.org/ws/2004/09/transfer/Put", output = "http://schemas.xmlsoap.org/ws/2004/09/transfer/PutResponse")
     public void put(
         @WebParam(partName = "Body", mode = WebParam.Mode.INOUT, name = "TransferElement", targetNamespace = "http://schemas.xmlsoap.org/ws/2004/09/transfer")
-        javax.xml.ws.Holder<TransferElement> body
+        jakarta.xml.ws.Holder<TransferElement> body
     );
 
     @WebMethod(operationName = "Delete")

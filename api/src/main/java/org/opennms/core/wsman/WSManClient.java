@@ -15,11 +15,12 @@
  */
 package org.opennms.core.wsman;
 
+import org.opennms.core.wsman.exceptions.WSManException;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+
 import java.util.List;
 import java.util.Map;
-
-import org.opennms.core.wsman.exceptions.WSManException;
-import org.w3c.dom.Node;
 
 /**
  * A WS-Man client implementation that supports the following operations:
@@ -110,4 +111,14 @@ public interface WSManClient {
      * @throws WSManException on error
      */
     public String enumerateAndPullUsingFilter(String resourceUri, String dialect, String filter, List<Node> nodes, boolean recursive);
+
+    /**
+     *
+     *
+     * @param resourceUri uri
+     * @param body body with a root XML element
+     * @param selectors map of selectors
+     * @throws WSManException on error
+     */
+    public void put(String resourceUri, Element body, Map<String, String> selectors);
 }

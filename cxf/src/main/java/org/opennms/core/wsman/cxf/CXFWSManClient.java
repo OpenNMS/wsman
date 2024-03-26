@@ -24,10 +24,11 @@ import java.util.Objects;
 
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-import javax.xml.bind.JAXBElement;
+import jakarta.xml.bind.JAXBElement;
 import javax.xml.namespace.QName;
-import javax.xml.ws.BindingProvider;
+import jakarta.xml.ws.BindingProvider;
 
+import jakarta.xml.ws.Holder;
 import org.apache.cxf.Bus;
 import org.apache.cxf.binding.soap.SoapBindingConstants;
 import org.apache.cxf.bus.extension.ExtensionManagerBus;
@@ -42,6 +43,7 @@ import org.apache.cxf.jaxws.JaxWsProxyFactoryBean;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.transport.http.HTTPConduit;
 import org.apache.cxf.transport.http.auth.DefaultBasicAuthSupplier;
+import org.apache.cxf.transport.http.auth.DigestAuthSupplier;
 import org.apache.cxf.transport.http.auth.HttpAuthHeader;
 import org.apache.cxf.transports.http.configuration.HTTPClientPolicy;
 import org.apache.cxf.ws.addressing.AddressingProperties;
@@ -63,6 +65,8 @@ import org.opennms.core.wsman.exceptions.UnauthorizedException;
 import org.opennms.core.wsman.exceptions.WSManException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.xmlsoap.schemas.ws._2004._09.enumeration.Enumerate;
 import org.xmlsoap.schemas.ws._2004._09.enumeration.EnumerateResponse;
@@ -290,6 +294,25 @@ public class CXFWSManClient implements WSManClient {
     }
 
     @Override
+    public void put(String resourceUri, Element body, Map<String, String> selectors) {
+        String elementType = TypeUtils.getElementTypeFromResourceUri(resourceUri);
+        final TransferOperations transferer = getTransferer(resourceUri, elementType, selectors);
+        try {
+            TransferElement transferElement = new TransferElement();
+            transferElement.getAny().clear();
+            // Add the root XML element as a child element of TransferElement
+            transferElement.getAny().add(body);
+
+            Holder<TransferElement> holder = new Holder<>(transferElement);
+            transferer.put(holder);
+        } catch (RuntimeException e) {
+            throw wrapException(e);
+        } finally {
+            destroy(transferer);
+        }
+    }
+
+    @Override
     public Node get(String resourceUri, Map<String, String> selectors) {
         String elementType = TypeUtils.getElementTypeFromResourceUri(resourceUri);
         final TransferOperations transferer = getTransferer(resourceUri, elementType, selectors);
@@ -396,6 +419,14 @@ public class CXFWSManClient implements WSManClient {
         } else if (m_endpoint.isBasicAuth()) {
             LOG.debug("Enabling basic authentication.");
             http.setAuthSupplier(new DefaultBasicAuthSupplier());
+            http.getAuthorization().setUserName(m_endpoint.getUsername());
+            http.getAuthorization().setPassword(m_endpoint.getPassword());
+
+            requestContext.put(BindingProvider.USERNAME_PROPERTY, m_endpoint.getUsername());
+            requestContext.put(BindingProvider.PASSWORD_PROPERTY, m_endpoint.getPassword());
+        } else if (m_endpoint.isDigestAuth()) {
+            LOG.debug("Enabling digest authentication.");
+            http.setAuthSupplier(new DigestAuthSupplier());
             http.getAuthorization().setUserName(m_endpoint.getUsername());
             http.getAuthorization().setPassword(m_endpoint.getPassword());
 
