@@ -59,11 +59,6 @@
       <version>${slf4jVersion}</version>
     </dependency>
     <dependency>
-      <groupId>com.google.guava</groupId>
-      <artifactId>guava</artifactId>
-      <version>${guavaVersion}</version>
-    </dependency>
-    <dependency>
       <!-- There are no openwsman artifacts in Maven central, so we use a bundled version -->
       <groupId>openwsman</groupId>
       <artifactId>openwsman</artifactId>

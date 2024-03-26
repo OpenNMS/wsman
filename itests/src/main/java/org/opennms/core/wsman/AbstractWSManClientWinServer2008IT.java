@@ -1,5 +1,5 @@
 /*
- * Copyright 2015, The OpenNMS Group
+ * Copyright (C) The OpenNMS Group
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.Before;
@@ -28,8 +29,6 @@ import org.opennms.core.wsman.utils.TestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
-
-import com.google.common.collect.Lists;
 
 /**
  * This test connects to an instance of Windows Servier 2008
@@ -58,7 +57,7 @@ public abstract class AbstractWSManClientWinServer2008IT {
 
     @Test
     public void canEnumerateWin32Services() {
-        List<Node> services = Lists.newArrayList();
+        List<Node> services = new ArrayList<>();
         client.enumerateAndPull("http://schemas.microsoft.com/wbem/wsman/1/wmi/root/cimv2/Win32_Service", services, true);
         assertTrue(services.size() + " services", services.size() > 10);
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015, The OpenNMS Group
+ * Copyright (C) The OpenNMS Group
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -19,6 +19,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,8 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.mycila.xmltool.XMLDoc;
 import com.mycila.xmltool.XMLTag;
 
@@ -62,7 +62,7 @@ public abstract class AbstractWSManClientDracIT {
 
     @Test
     public void canGetInputVoltage() {
-        List<Node> powerSupplies = Lists.newLinkedList();
+        List<Node> powerSupplies = new LinkedList<>();
         client.enumerateAndPullUsingFilter(
                 WSManConstants.CIM_ALL_AVAILABLE_CLASSES,
                 WSManConstants.XML_NS_WQL_DIALECT,
@@ -78,7 +78,7 @@ public abstract class AbstractWSManClientDracIT {
 
     @Test
     public void canGetSystemPrimaryStatus() {
-        Map<String, String> selectors = Maps.newHashMap();
+        Map<String, String> selectors = new HashMap<>();
         selectors.put("CreationClassName", "DCIM_ComputerSystem");
         selectors.put("Name", "srv:system");
         Node node = client.get("http://schemas.dell.com/wbem/wscim/1/cim-schema/2/DCIM_ComputerSystem", selectors);

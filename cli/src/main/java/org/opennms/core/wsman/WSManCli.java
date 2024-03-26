@@ -1,6 +1,6 @@
 /*
- * Copyright 2015, The OpenNMS Group
- * 
+ * Copyright (C) The OpenNMS Group
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
  * a copy of the License at
@@ -18,6 +18,7 @@ package org.opennms.core.wsman;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -38,8 +39,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-
-import com.google.common.collect.Lists;
 
 public class WSManCli {
     private static Logger LOG = LoggerFactory.getLogger(WSManCli.class);
@@ -84,7 +83,7 @@ public class WSManCli {
     private Map<String,String> selectors;
 
     @Argument
-    private List<String> arguments = new ArrayList<String>();
+    private List<String> arguments = new ArrayList<>();
 
     private WSManClientFactory clientFactory = new CXFWSManClientFactory();
     
@@ -132,7 +131,7 @@ public class WSManCli {
         WSManClient client = clientFactory.getClient(endpoint);
 
         if (operation == WSManOperation.ENUM) {
-            List<Node> nodes = Lists.newLinkedList();
+            List<Node> nodes = new LinkedList<>();
             if (arguments.isEmpty()) {
                 LOG.info("Enumerating and pulling on '{}'...", resourceUri);
                 client.enumerateAndPull(resourceUri, nodes , true);

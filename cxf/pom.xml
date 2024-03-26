@@ -128,11 +128,6 @@
       <version>${slf4jVersion}</version>
     </dependency>
     <dependency>
-      <groupId>com.google.guava</groupId>
-      <artifactId>guava</artifactId>
-      <version>${guavaVersion}</version>
-    </dependency>
-    <dependency>
       <groupId>org.apache.cxf</groupId>
       <artifactId>cxf-rt-frontend-jaxws</artifactId>
       <version>${cxfVersion}</version>

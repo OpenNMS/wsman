@@ -1,5 +1,5 @@
 /*
- * Copyright 2017, The OpenNMS Group
+ * Copyright (C) The OpenNMS Group
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -31,6 +31,8 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.net.MalformedURLException;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -54,8 +56,6 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.extension.responsetemplating.ResponseTemplateTransformer;
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.mycila.xmltool.XMLDoc;
 import com.mycila.xmltool.XMLTag;
 
@@ -133,7 +133,7 @@ public abstract class AbstractWSManClientIT {
                     .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
                     .withBodyFile("pull-response.xml")));
 
-        List<Node> nodes = Lists.newArrayList();
+        List<Node> nodes = new ArrayList<>();
         client.pull("c6595ee1-2664-1664-801f-c115cfb5fe14", WSManConstants.CIM_ALL_AVAILABLE_CLASSES, nodes, false);
 
         dumpRequestsToStdout();
@@ -160,7 +160,7 @@ public abstract class AbstractWSManClientIT {
                     .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
                     .withBodyFile("recursive-pull-response-2.xml")));
 
-        List<Node> nodes = Lists.newArrayList();
+        List<Node> nodes = new ArrayList<>();
         client.pull("c6595ee1-2664-1664-801f-c115cfb5fe14", WSManConstants.CIM_ALL_AVAILABLE_CLASSES, nodes, true);
 
         dumpRequestsToStdout();
@@ -183,7 +183,7 @@ public abstract class AbstractWSManClientIT {
                     .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
                     .withBodyFile("optimized-enum-response.xml")));
 
-        List<Node> nodes = Lists.newArrayList();
+        List<Node> nodes = new ArrayList<>();
         client.enumerateAndPullUsingFilter(WSManConstants.CIM_ALL_AVAILABLE_CLASSES,
                 "select DeviceDescription,PrimaryStatus,TotalOutputPower,InputVoltage,Range1MaxInputPower,FirmwareVersion,RedundancyStatus from DCIM_PowerSupplyView where DetailedState != 'Absent' and PrimaryStatus != 0",
                 WSManConstants.XML_NS_WQL_DIALECT,
@@ -212,7 +212,7 @@ public abstract class AbstractWSManClientIT {
                     .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
                     .withBodyFile("optimized-enum-response-with-fragments-2.xml")));
 
-        List<Node> nodes = Lists.newArrayList();
+        List<Node> nodes = new ArrayList<>();
         client.enumerateAndPullUsingFilter("http://schemas.microsoft.com/wbem/wsman/1/wmi/root/cimv2/*",
                 "select Name, Size, FreeSpace FROM Win32_LogicalDisk",
                 WSManConstants.XML_NS_WQL_DIALECT,
@@ -232,7 +232,7 @@ public abstract class AbstractWSManClientIT {
     }
 
     private static Map<String, String> toMap(Node node) {
-        Map<String, String> map = Maps.newHashMap();
+        Map<String, String> map = new HashMap<>();
         // Parse the values from the child nodes
         NodeList children = node.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
@@ -254,7 +254,7 @@ public abstract class AbstractWSManClientIT {
                     .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
                     .withBodyFile("get-response.xml")));
 
-        Map<String, String> selectors = Maps.newHashMap();
+        Map<String, String> selectors = new HashMap<>();
         selectors.put("CreationClassName", "DCIM_ComputerSystem");
         selectors.put("Name", "srv:system");
         Node node = client.get("http://schemas.dell.com/wbem/wscim/1/cim-schema/2/DCIM_ComputerSystem", selectors);
@@ -285,7 +285,7 @@ public abstract class AbstractWSManClientIT {
                 .willReturn(aResponse()
                         .withHeader("Content-Type", "Content-Type: application/soap+xml; charset=utf-8")
                         .withBodyFile("get-response-fault.xml")));
-        Map<String, String> selectors = Maps.newHashMap();
+        Map<String, String> selectors = new HashMap<>();
         selectors.put("CreationClassName", "DCIM_ComputerSystem");
         selectors.put("Name", "srv:system");
         client.get("http://schemas.dell.com/wbem/wscim/1/cim-schema/2/DCIM_ComputerSystem", selectors);

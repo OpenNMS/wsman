@@ -1,5 +1,5 @@
 /*
- * Copyright 2015, The OpenNMS Group
+ * Copyright (C) The OpenNMS Group
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -72,8 +72,6 @@ import org.xmlsoap.schemas.ws._2004._09.enumeration.Pull;
 import org.xmlsoap.schemas.ws._2004._09.enumeration.PullResponse;
 import org.xmlsoap.schemas.ws._2004._09.transfer.TransferElement;
 
-import com.google.common.collect.Maps;
-
 import schemas.dmtf.org.wbem.wsman.v1.AttributableEmpty;
 import schemas.dmtf.org.wbem.wsman.v1.AttributablePositiveInteger;
 import schemas.dmtf.org.wbem.wsman.v1.IdentifyType;
@@ -99,7 +97,7 @@ public class CXFWSManClient implements WSManClient {
 
     public IdentifyOperations getIdentifier() {
         // Create the proxy
-        IdentifyOperations identifier = createProxyFor(IdentifyOperations.class, Maps.newHashMap(), Maps.newHashMap());
+        IdentifyOperations identifier = createProxyFor(IdentifyOperations.class, new HashMap<>(), new HashMap<>());
         Client cxfClient = ClientProxy.getClient(identifier);
 
         // The Identify command does not require any headers but Windows Server 2008
@@ -114,12 +112,12 @@ public class CXFWSManClient implements WSManClient {
     public EnumerationOperations getEnumerator(String resourceUri) {
         // Relocate the Filter element to the WS-Man namespace.
         // Our WSDLs generate it one package but the servers expect it to be in the other
-        Map<String, String> outTransformMap = Maps.newHashMap();
+        Map<String, String> outTransformMap = new HashMap<>();
         outTransformMap.put("{" + WSManConstants.XML_NS_WS_2004_09_ENUMERATION + "}Filter",
                 "{" + WSManConstants.XML_NS_DMTF_WSMAN_V1 + "}Filter");
 
         // Create the proxy
-        EnumerationOperations enumerator = createProxyFor(EnumerationOperations.class, outTransformMap, Maps.newHashMap());
+        EnumerationOperations enumerator = createProxyFor(EnumerationOperations.class, outTransformMap, new HashMap<>());
         Client cxfClient = ClientProxy.getClient(enumerator);
 
         // Add the WS-Man ResourceURI to the SOAP header
@@ -133,12 +131,12 @@ public class CXFWSManClient implements WSManClient {
         // Modify the incoming response to use a generic element instead of the one provided
         // The JAX-WS implementation excepts the element types to match those in specified
         // by the annotated interface, but these are subject to change for every call we make
-        Map<String, String> inTransformMap = Maps.newHashMap();
+        Map<String, String> inTransformMap = new HashMap<>();
         inTransformMap.put(String.format("{%s}%s", resourceUri, elementType),
                 "{" + WSManConstants.XML_NS_WS_2004_09_TRANSFER + "}TransferElement");
 
         // Create the proxy
-        TransferOperations transferer = createProxyFor(TransferOperations.class, Maps.newHashMap(), inTransformMap);
+        TransferOperations transferer = createProxyFor(TransferOperations.class, new HashMap<>(), inTransformMap);
         Client cxfClient = ClientProxy.getClient(transferer);
 
         // Add the WS-Man ResourceURI and SelectorSet to the SOAP header
@@ -431,7 +429,7 @@ public class CXFWSManClient implements WSManClient {
         // Content-Type: application/soap+xml; action="http://schemas.xmlsoap.org/ws/2004/09/enumeration/Enumerate"
         // Windows Server 2008 barfs on the action=".*" attribute and none of the other servers
         // seem to care whether it's there or not, so we remove it.
-        Map<String, List<String>> headers = Maps.newHashMap();
+        Map<String, List<String>> headers = new HashMap<>();
         headers.put(CONTENT_TYPE_HEADER, Collections.singletonList(MEDIA_TYPE_SOAP_UTF8));
         requestContext.put(Message.PROTOCOL_HEADERS, headers);
 
