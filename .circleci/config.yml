@@ -3,7 +3,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/openjdk:8-jdk-stretch-node-browsers
+      - image: cimg/openjdk:8.0
 
     environment:
       MAVEN_OPTS: -Xmx1024m
