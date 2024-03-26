@@ -46,7 +46,7 @@
     <javaVersion>1.8</javaVersion>
     <cxfVersion>3.4.10</cxfVersion>
     <slf4jVersion>1.7.36</slf4jVersion>
-    <guavaVersion>25.1-jre</guavaVersion>
+    <guavaVersion>33.1.0-jre</guavaVersion>
     <args4jVersion>2.33</args4jVersion>
     <xmltoolVersion>4.4.ga</xmltoolVersion>
     <log4jVersion>2.20.0</log4jVersion>
