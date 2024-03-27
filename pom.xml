@@ -45,7 +45,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <javaVersion>1.8</javaVersion>
     <cxfVersion>3.5.8</cxfVersion>
-    <slf4jVersion>1.7.36</slf4jVersion>
+    <slf4jVersion>2.0.12</slf4jVersion>
     <args4jVersion>2.33</args4jVersion>
     <xmltoolVersion>4.4.ga</xmltoolVersion>
     <log4jVersion>2.23.1</log4jVersion>
