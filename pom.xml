@@ -50,7 +50,7 @@
     <xmltoolVersion>4.4.ga</xmltoolVersion>
     <log4jVersion>2.23.1</log4jVersion>
     <junitVersion>4.13.2</junitVersion>
-    <wiremockVersion>2.27.2</wiremockVersion>
+    <wiremockVersion>2.35.2</wiremockVersion>
     <jaxbVersion>4.0.1</jaxbVersion>
     <activationVersion>1.1.1</activationVersion>
   </properties>
