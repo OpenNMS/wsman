@@ -3,7 +3,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: cimg/openjdk:8.0
+      - image: cimg/openjdk:17.0
 
     environment:
       MAVEN_OPTS: -Xmx1024m
@@ -14,9 +14,9 @@ jobs:
       # Download and cache dependencies
       - restore_cache:
           keys:
-          - v1-dependencies-{{ checksum "pom.xml" }}
-          # fallback to using the latest cache if no exact match is found
-          - v1-dependencies-
+            - v1-dependencies-{{ checksum "pom.xml" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
 
       - run:
           name: Compile and run the tests
@@ -43,6 +43,7 @@ jobs:
 
       - store_artifacts:
           path: cli/target/org.opennms.core.wsman.cli-*.jar
+
 
 workflows:
   version: 2
