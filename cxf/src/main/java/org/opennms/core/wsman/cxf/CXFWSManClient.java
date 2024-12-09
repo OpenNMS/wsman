@@ -352,6 +352,8 @@ public class CXFWSManClient implements WSManClient {
         // Setup timeouts
         HTTPConduit http = (HTTPConduit)cxfClient.getConduit();
         HTTPClientPolicy httpClientPolicy = new HTTPClientPolicy();
+        // Try forcing HTTP 1.1 for now
+        httpClientPolicy.setVersion("1.1");
         if (m_endpoint.getConnectionTimeout() != null) {
             httpClientPolicy.setConnectionTimeout(m_endpoint.getConnectionTimeout());
         }
@@ -444,7 +446,7 @@ public class CXFWSManClient implements WSManClient {
 
         return proxyService;
     }
- 
+
     private AddressingProperties createAddressingPropertiesMap() {
         AddressingProperties maps = new AddressingProperties();
         AttributedURIType address = WSA_OBJECT_FACTORY.createAttributedURIType();
