@@ -3,7 +3,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: cimg/openjdk:8.0
+      - image: cimg/openjdk:17.0.14
 
     environment:
       MAVEN_OPTS: -Xmx1024m
