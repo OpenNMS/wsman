@@ -316,10 +316,7 @@ public class CXFWSManClient implements WSManClient {
         // This is necessary since the bus holds a reference to the org.apache.cxf.ws.policy.PolicyRegistryImpl, which contains
         // policies created by the Wsdl11AttachmentPolicyProvider, which are never removed. If we don't create our own
         // bus, the same instance will be shared across all factories, and the policies will continue to accumulate.
-        Map<String,Object> prop= new HashMap<>();
-        prop.put("bus.io.CachedOutputStreamCleaner.Delay",   -1L);
-        prop.put("bus.io.CachedOutputStreamCleaner.CleanOnShutdown", false);
-        Bus bus = new ExtensionManagerBus(null, prop, Bus.class.getClassLoader());
+        Bus bus = new ExtensionManagerBus(null, null, Bus.class.getClassLoader());
         factory.setBus(bus);
 
         WSAddressingFeature feature = new WSAddressingFeature();
@@ -499,6 +496,10 @@ public class CXFWSManClient implements WSManClient {
     private static void destroy(Object proxy) {
         // Destroy the client associated with the proxy
         final Client client = ClientProxy.getClient(proxy);
+
+
+        Bus bus = client.getBus();
+        bus.shutdown(true);
         client.destroy();
     }
 }
