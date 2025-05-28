@@ -352,6 +352,7 @@ public class CXFWSManClient implements WSManClient {
         // Setup timeouts
         HTTPConduit http = (HTTPConduit)cxfClient.getConduit();
         HTTPClientPolicy httpClientPolicy = new HTTPClientPolicy();
+        httpClientPolicy.setVersion("1.1");
         if (m_endpoint.getConnectionTimeout() != null) {
             httpClientPolicy.setConnectionTimeout(m_endpoint.getConnectionTimeout());
         }
@@ -495,6 +496,10 @@ public class CXFWSManClient implements WSManClient {
     private static void destroy(Object proxy) {
         // Destroy the client associated with the proxy
         final Client client = ClientProxy.getClient(proxy);
+
+
+        Bus bus = client.getBus();
+        bus.shutdown(true);
         client.destroy();
     }
 }
