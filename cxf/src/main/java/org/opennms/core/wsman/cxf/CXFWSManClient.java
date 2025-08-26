@@ -154,7 +154,9 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
+        if (identifier != null) {
             destroy(identifier);
+            }
         }
     }
 
@@ -199,7 +201,9 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            destroy(enumerator);
+            if (enumerator != null) {
+                destroy(enumerator);
+            }
         }
     }
 
@@ -259,7 +263,9 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            destroy(enumerator);
+            if (enumerator != null) {
+                destroy(enumerator);
+            }
         }
         if (response == null) {
             throw new WSManException(String.format("Pull failed for context id: %s. See logs for details.", contextId));
@@ -297,7 +303,9 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            destroy(transferer);
+            if (transferer != null) {
+                destroy(transferer);
+            }
         }
         if (transferElement == null) {
             // Note that fault should be thrown if the object doesn't exist
@@ -496,10 +504,14 @@ public class CXFWSManClient implements WSManClient {
     private static void destroy(Object proxy) {
         // Destroy the client associated with the proxy
         final Client client = ClientProxy.getClient(proxy);
-
-
-        Bus bus = client.getBus();
-        bus.shutdown(true);
-        client.destroy();
+        if (client != null) {
+        	try {
+            Bus bus = client.getBus();
+            bus.shutdown(true);
+            client.destroy();
+        } catch (Exception ex) {
+                // Log and ignore, or handle accordingly
+            }
+        }
     }
 }
