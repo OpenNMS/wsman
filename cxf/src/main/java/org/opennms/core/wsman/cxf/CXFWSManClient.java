@@ -154,8 +154,8 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-        if (identifier != null) {
-            destroy(identifier);
+            if (identifier != null) {
+                destroy(identifier);
             }
         }
     }
@@ -506,10 +506,10 @@ public class CXFWSManClient implements WSManClient {
         final Client client = ClientProxy.getClient(proxy);
         if (client != null) {
         	try {
-            Bus bus = client.getBus();
-            bus.shutdown(true);
-            client.destroy();
-        } catch (Exception ex) {
+                Bus bus = client.getBus();
+                bus.shutdown(true);
+                client.destroy();
+            } catch (Exception ex) {
                 // Log and ignore, or handle accordingly
             }
         }
