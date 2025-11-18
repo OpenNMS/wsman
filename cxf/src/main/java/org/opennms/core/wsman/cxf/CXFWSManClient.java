@@ -154,9 +154,7 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            if (identifier != null) {
-                destroy(identifier);
-            }
+            destroy(identifier);
         }
     }
 
@@ -201,9 +199,7 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            if (enumerator != null) {
-                destroy(enumerator);
-            }
+            destroy(enumerator);
         }
     }
 
@@ -263,9 +259,7 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            if (enumerator != null) {
-                destroy(enumerator);
-            }
+            destroy(enumerator);
         }
         if (response == null) {
             throw new WSManException(String.format("Pull failed for context id: %s. See logs for details.", contextId));
@@ -303,9 +297,7 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            if (transferer != null) {
-                destroy(transferer);
-            }
+            destroy(transferer);
         }
         if (transferElement == null) {
             // Note that fault should be thrown if the object doesn't exist
@@ -360,7 +352,6 @@ public class CXFWSManClient implements WSManClient {
         // Setup timeouts
         HTTPConduit http = (HTTPConduit)cxfClient.getConduit();
         HTTPClientPolicy httpClientPolicy = new HTTPClientPolicy();
-        httpClientPolicy.setVersion("1.1");
         if (m_endpoint.getConnectionTimeout() != null) {
             httpClientPolicy.setConnectionTimeout(m_endpoint.getConnectionTimeout());
         }
@@ -505,7 +496,7 @@ public class CXFWSManClient implements WSManClient {
         // Destroy the client associated with the proxy
         final Client client = ClientProxy.getClient(proxy);
         if (client != null) {
-        	try {
+            try {
                 Bus bus = client.getBus();
                 bus.shutdown(true);
                 client.destroy();
