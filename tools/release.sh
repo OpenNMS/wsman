@@ -28,7 +28,7 @@ git tag "v$RELEASE_VERSION"
 
 # 3. Publish to Maven Central (Central Publishing)
 echo "Publishing version $RELEASE_VERSION to Maven Central..."
-mvn -Ppublish deploy
+mvn -Prelease deploy
 
 # 4. Push commits + tags
 echo "Pushing commits and tags to remote..."
