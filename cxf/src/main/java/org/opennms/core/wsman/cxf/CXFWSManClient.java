@@ -499,10 +499,16 @@ public class CXFWSManClient implements WSManClient {
         if (client != null) {
             try {
                 Bus bus = client.getBus();
-                bus.shutdown(true);
+                if (bus != null) {
+                    bus.shutdown(true);
+                }
+            } catch (Exception ex) {
+                LOG.debug("Error shutting down CXF bus", ex);
+            }
+            try {
                 client.destroy();
             } catch (Exception ex) {
-                // Log and ignore, or handle accordingly
+                LOG.debug("Error destroying CXF client", ex);
             }
         }
     }
