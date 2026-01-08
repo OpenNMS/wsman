@@ -54,3 +54,9 @@ mvn versions:commit
 git commit -am "Start 1.3.5-SNAPSHOT"
 git push
 ```
+
+---
+
+### **6. Publish (or Verify) the deployment on Maven Central Repository
+
+Navigate to Deployments on Maven Central Repository, and verify the deploment has been published.
