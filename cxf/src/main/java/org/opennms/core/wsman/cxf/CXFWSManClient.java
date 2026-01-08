@@ -496,10 +496,20 @@ public class CXFWSManClient implements WSManClient {
     private static void destroy(Object proxy) {
         // Destroy the client associated with the proxy
         final Client client = ClientProxy.getClient(proxy);
-
-
-        Bus bus = client.getBus();
-        bus.shutdown(true);
-        client.destroy();
+        if (client != null) {
+            try {
+                Bus bus = client.getBus();
+                if (bus != null) {
+                    bus.shutdown(true);
+                }
+            } catch (Exception ex) {
+                LOG.debug("Error shutting down CXF bus", ex);
+            }
+            try {
+                client.destroy();
+            } catch (Exception ex) {
+                LOG.debug("Error destroying CXF client", ex);
+            }
+        }
     }
 }
