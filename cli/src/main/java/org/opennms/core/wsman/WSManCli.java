@@ -68,6 +68,9 @@ public class WSManCli {
     @Option(name="-gssAuth", usage="GSS authentication")
     private boolean gssAuth = false;
 
+    @Option(name="-kerberosEncryption", usage="Kerberos message encryption (MS-WSMV §2.2.9.1)")
+    private boolean kerberosEncryption = false;
+
     @Option(name="-o", usage="operation")
     WSManOperation operation = WSManOperation.ENUM;
 
@@ -145,7 +148,12 @@ public class WSManCli {
                 .withStrictSSL(strictSSL)
                 .withServerVersion(serverVersion)
                 .withMaxElements(100);
-        if (username != null && password != null) {
+        if (kerberosEncryption) {
+            if (username != null && password != null) {
+                builder.withBasicAuth(username, password);
+            }
+            builder.withKerberosEncryption();
+        } else if (username != null && password != null) {
             builder.withBasicAuth(username, password);
         } else if (gssAuth) {
             builder.withGSSAuth();

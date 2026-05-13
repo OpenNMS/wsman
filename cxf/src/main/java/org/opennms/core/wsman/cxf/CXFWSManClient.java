@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import javax.xml.bind.JAXBElement;
@@ -368,28 +370,52 @@ public class CXFWSManClient implements WSManClient {
         httpClientPolicy.setAllowChunking(false);
         http.setClient(httpClientPolicy);
 
+        // Build one permissive SSLSocketFactory and share it between CXF's TLSClientParameters
+        // and the Kerberos pre-flight: the JVM HTTPS keep-alive cache keys connections by
+        // SSLSocketFactory identity, so the pre-flight socket can only be reused by CXF's
+        // encrypted POST when both sides use the exact same factory instance.
+        SSLSocketFactory sharedSslFactory = null;
         if (!m_endpoint.isStrictSSL()) {
             LOG.debug("Disabling strict SSL checking.");
-            // Accept all certificates
-            TrustManager[] simpleTrustManager = new TrustManager[] { new X509TrustManager() {
-                public void checkClientTrusted(
-                        java.security.cert.X509Certificate[] certs, String authType) {
-                }
-                public void checkServerTrusted(
-                        java.security.cert.X509Certificate[] certs, String authType) {
-                }
-                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                    return null;
-                }
-            } };
+            TrustManager[] trustAll = new TrustManager[] { new X509TrustManager() {
+                public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
+            }};
+            try {
+                SSLContext ctx = SSLContext.getInstance("TLS");
+                ctx.init(null, trustAll, new java.security.SecureRandom());
+                sharedSslFactory = ctx.getSocketFactory();
+            } catch (java.security.GeneralSecurityException e) {
+                throw new RuntimeException("Failed to build permissive SSLSocketFactory", e);
+            }
             TLSClientParameters tlsParams = new TLSClientParameters();
-            tlsParams.setTrustManagers(simpleTrustManager);
+            tlsParams.setSSLSocketFactory(sharedSslFactory);
+            tlsParams.setTrustManagers(trustAll);
             tlsParams.setDisableCNCheck(true);
             http.setTlsClientParameters(tlsParams);
         }
 
         // Setup authentication
-        if (m_endpoint.isGSSAuth()) {
+        if (m_endpoint.isKerberosEncryption()) {
+            // MS-WSMV §2.2.9.1: message-level Kerberos encryption.
+            // Windows HTTP.sys requires the Kerberos AP-REQ/AP-REP handshake to complete
+            // on a bare pre-flight POST before it will accept encrypted bodies. This mirrors
+            // pywinrm's setup_encryption() call. The pre-flight must use the same JVM
+            // HttpURLConnection so the TCP connection is reused by CXF's URLConnectionHTTPConduit.
+            LOG.debug("Enabling Kerberos message encryption (MS-WSMV §2.2.9.1).");
+            GSSContextManager gssManager = new GSSContextManager(
+                m_endpoint.getUrl().getHost(),
+                m_endpoint.getUsername(),
+                m_endpoint.getPassword(),
+                sharedSslFactory);
+            // Pre-flight is deferred to KerberosEncryptOutInterceptor.onClose(), which runs
+            // immediately before target.write() triggers CXF's lazy connectAndGetOutputStream().
+            // Doing it there (not here) ensures the pre-flight socket is in the JVM keep-alive
+            // pool at the exact moment CXF's conduit establishes its TCP connection.
+            cxfClient.getOutInterceptors().add(new KerberosEncryptOutInterceptor(gssManager));
+            cxfClient.getInInterceptors().add(new KerberosDecryptInInterceptor(gssManager));
+        } else if (m_endpoint.isGSSAuth()) {
             // See http://cxf.apache.org/docs/client-http-transport-including-ssl-support.html#ClientHTTPTransport(includingSSLsupport)-SpnegoAuthentication(Kerberos)
             LOG.debug("Enabling GSS authentication.");
             http.getAuthorization().setAuthorizationType(HttpAuthHeader.AUTH_TYPE_NEGOTIATE);
@@ -435,9 +461,12 @@ public class CXFWSManClient implements WSManClient {
         // Content-Type: application/soap+xml; action="http://schemas.xmlsoap.org/ws/2004/09/enumeration/Enumerate"
         // Windows Server 2008 barfs on the action=".*" attribute and none of the other servers
         // seem to care whether it's there or not, so we remove it.
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put(CONTENT_TYPE_HEADER, Collections.singletonList(MEDIA_TYPE_SOAP_UTF8));
-        requestContext.put(Message.PROTOCOL_HEADERS, headers);
+        // When Kerberos encryption is active the out-interceptor overwrites Content-Type itself.
+        if (!m_endpoint.isKerberosEncryption()) {
+            Map<String, List<String>> headers = new HashMap<>();
+            headers.put(CONTENT_TYPE_HEADER, Collections.singletonList(MEDIA_TYPE_SOAP_UTF8));
+            requestContext.put(Message.PROTOCOL_HEADERS, headers);
+        }
 
         // Log incoming and outgoing requests
         LoggingInInterceptor loggingInInterceptor = new LoggingInInterceptor();
