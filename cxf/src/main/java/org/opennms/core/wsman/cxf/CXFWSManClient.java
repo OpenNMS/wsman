@@ -16,6 +16,7 @@
 package org.opennms.core.wsman.cxf;
 
 import java.math.BigInteger;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -56,11 +57,15 @@ import org.opennms.core.wsman.WSManClient;
 import org.opennms.core.wsman.WSManConstants;
 import org.opennms.core.wsman.WSManEndpoint;
 import org.opennms.core.wsman.WSManVersion;
+import org.opennms.core.wsman.cxf.shell.CxfShellOperations;
+import org.opennms.core.wsman.cxf.shell.WinRSClient;
 import org.opennms.core.wsman.exceptions.HTTPException;
 import org.opennms.core.wsman.exceptions.InvalidResourceURI;
 import org.opennms.core.wsman.exceptions.SOAPFault;
 import org.opennms.core.wsman.exceptions.UnauthorizedException;
 import org.opennms.core.wsman.exceptions.WSManException;
+import org.opennms.core.wsman.shell.CommandResult;
+import org.opennms.core.wsman.shell.ShellOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
@@ -455,6 +460,85 @@ public class CXFWSManClient implements WSManClient {
         maps.setReplyTo(ref);
         maps.setFaultTo(ref);
         return maps;
+    }
+
+    @Override
+    public CommandResult runCommand(String executable, String[] args, Duration timeout, ShellOptions options) {
+        CxfShellOperations ops = new CxfShellOperations(m_endpoint.getUrl().toExternalForm());
+        try {
+            configureShellConduit(ops.getClient());
+            try (WinRSClient winrs = new WinRSClient(ops, options)) {
+                return winrs.runCommand(executable, args, timeout);
+            }
+        } catch (RuntimeException e) {
+            throw wrapException(e);
+        } finally {
+            try { ops.getClient().destroy(); } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * Applies the same HTTP-conduit / TLS / auth / logging configuration to the WinRS
+     * {@link CxfShellOperations}'s underlying CXF {@link Client} that {@link #createProxyFor}
+     * applies to the JAX-WS proxies. JAX-WS-specific things (transform maps, Content-Type
+     * action-attribute override) are not applied — they don't apply to {@code Dispatch}.
+     */
+    private void configureShellConduit(Client cxfClient) {
+        HTTPConduit http = (HTTPConduit) cxfClient.getConduit();
+
+        HTTPClientPolicy httpClientPolicy = new HTTPClientPolicy();
+        if (m_endpoint.getConnectionTimeout() != null) {
+            httpClientPolicy.setConnectionTimeout(m_endpoint.getConnectionTimeout());
+        }
+        if (m_endpoint.getReceiveTimeout() != null) {
+            httpClientPolicy.setReceiveTimeout(m_endpoint.getReceiveTimeout());
+        }
+        httpClientPolicy.setAllowChunking(false);
+        http.setClient(httpClientPolicy);
+
+        if (!m_endpoint.isStrictSSL()) {
+            TrustManager[] simpleTrustManager = new TrustManager[] { new X509TrustManager() {
+                public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
+            }};
+            TLSClientParameters tlsParams = new TLSClientParameters();
+            tlsParams.setTrustManagers(simpleTrustManager);
+            tlsParams.setDisableCNCheck(true);
+            http.setTlsClientParameters(tlsParams);
+        }
+
+        if (m_endpoint.isGSSAuth()) {
+            http.getAuthorization().setAuthorizationType(HttpAuthHeader.AUTH_TYPE_NEGOTIATE);
+            http.getAuthorization().setAuthorization("WSManClient");
+            http.getAuthorization().setUserName(m_endpoint.getUsername());
+            http.getAuthorization().setPassword(m_endpoint.getPassword());
+        } else if (m_endpoint.isBasicAuth()) {
+            http.setAuthSupplier(new DefaultBasicAuthSupplier());
+            http.getAuthorization().setUserName(m_endpoint.getUsername());
+            http.getAuthorization().setPassword(m_endpoint.getPassword());
+            cxfClient.getRequestContext().put(BindingProvider.USERNAME_PROPERTY, m_endpoint.getUsername());
+            cxfClient.getRequestContext().put(BindingProvider.PASSWORD_PROPERTY, m_endpoint.getPassword());
+        }
+
+        // WSMAN 1.0 does not accept the W3C 2005/08 WS-Addressing namespace. Rewrite the
+        // outgoing wsa:* element namespace to the 2004/08 form the server expects.
+        // Mirrors the same handling done for the JAX-WS proxies in createProxyFor.
+        if (m_endpoint.getServerVersion() == WSManVersion.WSMAN_1_0) {
+            Map<String, String> outTransformMap = new HashMap<>();
+            outTransformMap.put("{" + JAXWSAConstants.NS_WSA + "}*",
+                                "{" + WSManConstants.XML_NS_WS_2004_08_ADDRESSING + "}*");
+            TransformOutInterceptor transformOut = new TransformOutInterceptor();
+            transformOut.setOutTransformElements(outTransformMap);
+            cxfClient.getOutInterceptors().add(transformOut);
+        }
+
+        LoggingInInterceptor loggingIn = new LoggingInInterceptor();
+        loggingIn.setPrettyLogging(true);
+        cxfClient.getInInterceptors().add(loggingIn);
+        LoggingOutInterceptor loggingOut = new LoggingOutInterceptor();
+        loggingOut.setPrettyLogging(true);
+        cxfClient.getOutInterceptors().add(loggingOut);
     }
 
     /**

@@ -18,21 +18,21 @@ package org.opennms.core.wsman.cxf.shell;
 import java.io.StringReader;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import javax.xml.namespace.QName;
+import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.Source;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.ws.Dispatch;
 import javax.xml.ws.Service;
 import javax.xml.ws.WebServiceFeature;
 import javax.xml.ws.soap.SOAPBinding;
-
-import org.apache.cxf.ws.addressing.WSAddressingFeature;
 
 import org.apache.cxf.endpoint.Client;
 import org.apache.cxf.headers.Header;
@@ -41,9 +41,12 @@ import org.apache.cxf.ws.addressing.AddressingProperties;
 import org.apache.cxf.ws.addressing.AttributedURIType;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 import org.apache.cxf.ws.addressing.JAXWSAConstants;
+import org.apache.cxf.ws.addressing.WSAddressingFeature;
 import org.apache.cxf.ws.addressing.soap.VersionTransformer;
 import org.opennms.core.wsman.shell.ShellOptions;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 
 /**
  * Wraps a CXF {@link Dispatch} configured for the WinRS shell endpoint and exposes the
@@ -211,36 +214,22 @@ public class CxfShellOperations implements ShellOperations {
     private static Element responseToElement(Source response) {
         if (response == null) return null;
         if (response instanceof DOMSource) {
-            org.w3c.dom.Node node = ((DOMSource) response).getNode();
+            Node node = ((DOMSource) response).getNode();
             if (node == null) return null;
             return node instanceof Element ? (Element) node
-                : (Element) node.getOwnerDocument().getDocumentElement();
+                : node.getOwnerDocument().getDocumentElement();
         }
         // Other Source types (StreamSource, SAXSource) — convert via Transformer.
         try {
-            javax.xml.parsers.DocumentBuilderFactory dbf =
-                javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
             dbf.setNamespaceAware(true);
-            javax.xml.transform.dom.DOMResult result = new javax.xml.transform.dom.DOMResult(
-                dbf.newDocumentBuilder().newDocument());
-            javax.xml.transform.TransformerFactory.newInstance().newTransformer().transform(response, result);
-            org.w3c.dom.Document doc = (org.w3c.dom.Document) result.getNode();
+            DOMResult result = new DOMResult(dbf.newDocumentBuilder().newDocument());
+            TransformerFactory.newInstance().newTransformer().transform(response, result);
+            Document doc = (Document) result.getNode();
             return doc == null ? null : doc.getDocumentElement();
         } catch (Exception e) {
             throw new IllegalStateException("Failed to materialise shell response Source to DOM", e);
         }
     }
 
-    /**
-     * Convenience for building a selectors map with ShellId and (optionally) CommandId.
-     * Not used by the basic five methods above — provided for orchestration code that
-     * needs more elaborate selector sets.
-     */
-    @SuppressWarnings("unused")
-    private static Map<String, String> selectors(String shellId, String commandId) {
-        Map<String, String> m = new LinkedHashMap<>();
-        if (shellId != null) m.put("ShellId", shellId);
-        if (commandId != null) m.put("CommandId", commandId);
-        return m;
-    }
 }

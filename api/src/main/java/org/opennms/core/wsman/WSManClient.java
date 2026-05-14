@@ -15,10 +15,13 @@
  */
 package org.opennms.core.wsman;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
 import org.opennms.core.wsman.exceptions.WSManException;
+import org.opennms.core.wsman.shell.CommandResult;
+import org.opennms.core.wsman.shell.ShellOptions;
 import org.w3c.dom.Node;
 
 /**
@@ -110,4 +113,28 @@ public interface WSManClient {
      * @throws WSManException on error
      */
     public String enumerateAndPullUsingFilter(String resourceUri, String dialect, String filter, List<Node> nodes, boolean recursive);
+
+    /**
+     * Runs a single command via WinRS (MS-WSMV §3.1.4.10) on a fresh short-lived shell.
+     * Creates a shell, executes the command, blocks until it completes or the timeout
+     * elapses, then deletes the shell. Stdout/stderr from the command are captured into
+     * the returned {@link CommandResult}.
+     *
+     * @param executable the command to run (e.g. {@code "ipconfig"})
+     * @param args       optional arguments (may be {@code null} or empty)
+     * @param timeout    overall time budget covering Create + Command + Receive + Delete;
+     *                   on timeout the command receives a Terminate signal and a
+     *                   {@link WSManException} is thrown
+     * @param options    shell options (no-profile, code page, env, working directory)
+     * @return the command's exit code and accumulated stdout/stderr
+     * @throws WSManException on transport, protocol, or timeout errors
+     */
+    public CommandResult runCommand(String executable, String[] args, Duration timeout, ShellOptions options);
+
+    /**
+     * Convenience overload using {@link ShellOptions#defaults()}.
+     */
+    public default CommandResult runCommand(String executable, String[] args, Duration timeout) {
+        return runCommand(executable, args, timeout, ShellOptions.defaults());
+    }
 }

@@ -15,10 +15,8 @@
  */
 package org.opennms.core.wsman.cxf.shell;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -404,10 +402,4 @@ public class WinRSClientTest {
         }
     }
 
-    // suppress unused-import warning on assertArrayEquals — kept available for future
-    // byte-level assertions on Element bodies
-    @SuppressWarnings("unused")
-    private static void useAssertArrayEquals() { assertArrayEquals(new byte[0], new byte[0]); }
-    @SuppressWarnings("unused")
-    private static void useAssertNull() { assertNull(null); }
 }
