@@ -59,9 +59,10 @@ public class WinRSClient implements AutoCloseable {
      * Runs a single command in this client's shell (creating the shell on first call) and
      * blocks until the command completes, the timeout elapses, or an error occurs.
      *
-     * <p>Stdout and stderr are decoded as UTF-8. If the shell is configured with a
-     * non-UTF-8 code page, callers can re-decode {@link CommandResult#stdout()} bytes
-     * themselves — but UTF-8 (codepage 65001) is the recommended default.
+     * <p>Stdout and stderr are decoded as UTF-8 and returned as {@link String} values in
+     * the {@link CommandResult}. If the shell is configured with a non-UTF-8 code page,
+     * the returned text may be decoded incorrectly; callers cannot re-decode the original
+     * bytes from {@link CommandResult}. UTF-8 (code page 65001) is the recommended default.
      */
     public CommandResult runCommand(String executable, String[] args, Duration timeout) {
         Objects.requireNonNull(executable, "executable");
