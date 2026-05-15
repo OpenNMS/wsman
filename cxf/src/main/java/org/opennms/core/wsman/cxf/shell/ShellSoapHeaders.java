@@ -35,7 +35,7 @@ import org.w3c.dom.Element;
  * {@code org.apache.cxf.headers.Header} and CXF emits them in the outgoing
  * {@code soap:Header} of the envelope.
  *
- * <p>The {@code <wsa:*}} addressing headers (Action, MessageID, To, ReplyTo)
+ * <p>The {@code <wsa:*>} addressing headers (Action, MessageID, To, ReplyTo)
  * are set separately via {@code AddressingProperties} on the request context —
  * they are not produced here.
  */
