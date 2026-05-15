@@ -116,14 +116,15 @@ public interface WSManClient {
 
     /**
      * Runs a single command via WinRS (MS-WSMV §3.1.4.10) on a fresh short-lived shell.
-     * Creates a shell, executes the command, blocks until it completes or the timeout
-     * elapses, then deletes the shell. Stdout/stderr from the command are captured into
-     * the returned {@link CommandResult}.
+     * Creates a shell, executes the command, blocks while receiving output until the
+     * command completes or the timeout elapses, then deletes the shell. Stdout/stderr
+     * from the command are captured into the returned {@link CommandResult}.
      *
      * @param executable the command to run (e.g. {@code "ipconfig"})
      * @param args       optional arguments (may be {@code null} or empty)
-     * @param timeout    overall time budget covering Create + Command + Receive + Delete;
-     *                   on timeout the command receives a Terminate signal and a
+     * @param timeout    time budget for waiting on command completion/output reception;
+     *                   it does not include shell creation or deletion. On timeout the
+     *                   command receives a Terminate signal and a
      *                   {@link WSManException} is thrown
      * @param options    shell options (no-profile, code page, env, working directory)
      * @return the command's exit code and accumulated stdout/stderr
