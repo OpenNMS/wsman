@@ -219,8 +219,13 @@ public class CxfShellOperations implements ShellOperations {
         if (response instanceof DOMSource) {
             Node node = ((DOMSource) response).getNode();
             if (node == null) return null;
-            return node instanceof Element ? (Element) node
-                : node.getOwnerDocument().getDocumentElement();
+            if (node instanceof Element) return (Element) node;
+            // Per DOM spec, Document.getOwnerDocument() returns null — handle it
+            // explicitly so the unlikely case (CXF version upgrade, alternate JAX-WS
+            // provider) fails gracefully instead of with an opaque NPE.
+            if (node instanceof Document) return ((Document) node).getDocumentElement();
+            Document owner = node.getOwnerDocument();
+            return owner == null ? null : owner.getDocumentElement();
         }
         // Other Source types (StreamSource, SAXSource) — convert via Transformer.
         try {
