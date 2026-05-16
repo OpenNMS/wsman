@@ -15,6 +15,8 @@
  */
 package org.opennms.core.wsman.cxf.shell;
 
+import java.time.Duration;
+
 import org.opennms.core.wsman.shell.ShellOptions;
 import org.w3c.dom.Element;
 
@@ -33,7 +35,12 @@ public interface ShellOperations {
 
     Element command(String shellId, Element commandBody);
 
-    Element receive(String shellId, Element receiveBody);
+    /**
+     * Sends a Receive request. The server parks this call for up to {@code operationTimeout}
+     * waiting on stdout/stderr output before either returning what it has or replying with a
+     * {@code wsman:TimedOut} fault that the caller is expected to ignore and retry.
+     */
+    Element receive(String shellId, Element receiveBody, Duration operationTimeout);
 
     Element signal(String shellId, Element signalBody);
 

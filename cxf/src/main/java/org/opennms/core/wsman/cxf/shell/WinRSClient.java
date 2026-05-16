@@ -20,6 +20,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Objects;
 
+import javax.xml.namespace.QName;
+
+import org.apache.cxf.binding.soap.SoapFault;
+import org.opennms.core.wsman.WSManConstants;
 import org.opennms.core.wsman.exceptions.WSManException;
 import org.opennms.core.wsman.shell.CommandResult;
 import org.opennms.core.wsman.shell.ShellOptions;
@@ -45,6 +49,22 @@ import org.w3c.dom.Element;
  */
 public class WinRSClient implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(WinRSClient.class);
+
+    /**
+     * Ceiling for the per-Receive {@code OperationTimeout}. Windows clamps very large
+     * values silently and the caller's overall deadline check only fires between
+     * Receives — keeping a sensible ceiling means a long-budget caller (minutes or
+     * hours) still gets timely deadline enforcement instead of being trapped inside
+     * one giant blocking Receive. There is deliberately no floor: a caller passing
+     * a sub-second timeout gets a sub-second OperationTimeout, honoring their
+     * deadline rather than the server's preferred parking duration.
+     */
+    private static final Duration RECEIVE_OP_TIMEOUT_MAX = Duration.ofSeconds(60);
+
+    /** The {@code wsman:TimedOut} subcode the server returns when a Receive's
+     *  OperationTimeout elapses with no output; benign and expected — caller retries. */
+    private static final QName WSMAN_TIMED_OUT =
+        new QName(WSManConstants.XML_NS_DMTF_WSMAN_V1, "TimedOut");
 
     private final ShellOperations ops;
     private final ShellOptions options;
@@ -107,14 +127,29 @@ public class WinRSClient implements AutoCloseable {
         Integer exitCode = null;
 
         while (true) {
-            if (System.nanoTime() > deadlineNanos) {
+            long remainingNanos = deadlineNanos - System.nanoTime();
+            if (remainingNanos <= 0) {
                 throw new TimeoutReached();
             }
+            // Server-side OperationTimeout for this Receive: track the caller's
+            // remaining budget so we don't park past the overall deadline, capped at
+            // RECEIVE_OP_TIMEOUT_MAX so long-budget callers retain prompt deadline
+            // enforcement.
+            Duration remaining = Duration.ofNanos(remainingNanos);
+            Duration opTimeout = remaining.compareTo(RECEIVE_OP_TIMEOUT_MAX) > 0
+                ? RECEIVE_OP_TIMEOUT_MAX : remaining;
+
             Element receiveResponse;
             try {
                 receiveResponse = ops.receive(shellId,
-                    ShellBodyBuilder.buildReceiveBody(commandId));
+                    ShellBodyBuilder.buildReceiveBody(commandId), opTimeout);
             } catch (RuntimeException e) {
+                if (isWsmanTimedOut(e)) {
+                    // Benign: server held the Receive for OperationTimeout with no
+                    // output. Loop, re-check the caller deadline, and re-issue.
+                    LOG.trace("WinRS Receive: server returned TimedOut fault, retrying");
+                    continue;
+                }
                 throw new WSManException("WinRS Receive failed", e);
             }
             ShellResponseParser.ReceiveChunk chunk =
@@ -137,6 +172,20 @@ public class WinRSClient implements AutoCloseable {
             exitCode,
             stdout.toString(StandardCharsets.UTF_8),
             stderr.toString(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Walks the cause chain looking for a {@link SoapFault} whose subcode is
+     * {@code wsman:TimedOut} — the server's "no output yet, please retry" signal.
+     */
+    private static boolean isWsmanTimedOut(Throwable t) {
+        for (Throwable cur = t; cur != null; cur = cur.getCause()) {
+            if (cur instanceof SoapFault) {
+                QName sub = ((SoapFault) cur).getSubCode();
+                if (sub != null && WSMAN_TIMED_OUT.equals(sub)) return true;
+            }
+        }
+        return false;
     }
 
     private void sendTerminateBestEffort(String commandId) {

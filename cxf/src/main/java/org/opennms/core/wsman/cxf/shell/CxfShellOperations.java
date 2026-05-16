@@ -108,7 +108,8 @@ public class CxfShellOperations implements ShellOperations {
      */
     @Override
     public Element create(Element shellBody, ShellOptions options) {
-        prepareRequest(ShellConstants.ACTION_CREATE, null, ShellSoapHeaders.optionSet(options));
+        prepareRequest(ShellConstants.ACTION_CREATE, null,
+            ShellSoapHeaders.optionSet(options), DEFAULT_OPERATION_TIMEOUT);
         Source response = dispatch.invoke(new DOMSource(shellBody));
         return responseToElement(response);
     }
@@ -117,20 +118,21 @@ public class CxfShellOperations implements ShellOperations {
     @Override
     public Element command(String shellId, Element commandBody) {
         Element selectorSet = ShellSoapHeaders.selectorSet("ShellId", shellId);
-        prepareRequest(ShellConstants.ACTION_COMMAND, selectorSet, null);
+        prepareRequest(ShellConstants.ACTION_COMMAND, selectorSet, null, DEFAULT_OPERATION_TIMEOUT);
         Source response = dispatch.invoke(new DOMSource(commandBody));
         return responseToElement(response);
     }
 
     /**
-     * Send a Receive request. Servers may block on this for several seconds while waiting
-     * for output, so callers typically configure a generous {@code OperationTimeout} on
-     * the HTTP layer and loop on this until {@code ReceiveChunk.isDone()} is true.
+     * Send a Receive request. The server holds this call for up to {@code operationTimeout}
+     * waiting on stdout/stderr; the caller is expected to compute this from its overall
+     * deadline and loop on this until {@code ReceiveChunk.isDone()} is true (handling the
+     * {@code wsman:TimedOut} fault as "no output yet, retry").
      */
     @Override
-    public Element receive(String shellId, Element receiveBody) {
+    public Element receive(String shellId, Element receiveBody, Duration operationTimeout) {
         Element selectorSet = ShellSoapHeaders.selectorSet("ShellId", shellId);
-        prepareRequest(ShellConstants.ACTION_RECEIVE, selectorSet, null);
+        prepareRequest(ShellConstants.ACTION_RECEIVE, selectorSet, null, operationTimeout);
         Source response = dispatch.invoke(new DOMSource(receiveBody));
         return responseToElement(response);
     }
@@ -139,7 +141,7 @@ public class CxfShellOperations implements ShellOperations {
     @Override
     public Element signal(String shellId, Element signalBody) {
         Element selectorSet = ShellSoapHeaders.selectorSet("ShellId", shellId);
-        prepareRequest(ShellConstants.ACTION_SIGNAL, selectorSet, null);
+        prepareRequest(ShellConstants.ACTION_SIGNAL, selectorSet, null, DEFAULT_OPERATION_TIMEOUT);
         Source response = dispatch.invoke(new DOMSource(signalBody));
         return responseToElement(response);
     }
@@ -148,12 +150,13 @@ public class CxfShellOperations implements ShellOperations {
     @Override
     public void delete(String shellId) {
         Element selectorSet = ShellSoapHeaders.selectorSet("ShellId", shellId);
-        prepareRequest(ShellConstants.ACTION_DELETE, selectorSet, null);
+        prepareRequest(ShellConstants.ACTION_DELETE, selectorSet, null, DEFAULT_OPERATION_TIMEOUT);
         // Delete has an empty SOAP body; JAX-WS Dispatch requires a Source even so.
         dispatch.invoke(new StreamSource(new StringReader("<empty/>")));
     }
 
-    private void prepareRequest(String action, Element selectorSet, Element optionSet) {
+    private void prepareRequest(String action, Element selectorSet, Element optionSet,
+                                Duration operationTimeout) {
         Map<String, Object> ctx = dispatch.getRequestContext();
 
         // WS-Addressing properties: Action + a fresh MessageID per request.
@@ -166,7 +169,7 @@ public class CxfShellOperations implements ShellOperations {
         List<Header> headers = new ArrayList<>(6);
         headers.add(domHeader(ShellSoapHeaders.resourceUri()));
         headers.add(domHeader(ShellSoapHeaders.maxEnvelopeSize(DEFAULT_MAX_ENVELOPE_SIZE)));
-        headers.add(domHeader(ShellSoapHeaders.operationTimeout(DEFAULT_OPERATION_TIMEOUT)));
+        headers.add(domHeader(ShellSoapHeaders.operationTimeout(operationTimeout)));
         headers.add(domHeader(ShellSoapHeaders.locale(DEFAULT_LOCALE)));
         if (selectorSet != null) {
             headers.add(domHeader(selectorSet));

@@ -28,9 +28,11 @@ import java.util.Base64;
 import java.util.List;
 import java.util.function.Function;
 
+import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
+import org.apache.cxf.binding.soap.SoapFault;
 import org.junit.Test;
 import org.opennms.core.wsman.WSManConstants;
 import org.opennms.core.wsman.exceptions.WSManException;
@@ -267,6 +269,100 @@ public class WinRSClientTest {
         assertEquals(COMMAND_ID, desired.getAttribute("CommandId"));
     }
 
+    // --- per-Receive OperationTimeout / TimedOut-fault retry -------------------------
+
+    @Test
+    public void receiveLoop_timedOutFault_isRetriedNotPropagated() {
+        // First Receive: server returns wsman:TimedOut (no output yet, retry).
+        // Second Receive: returns the actual Done chunk.
+        FakeOps ops = new FakeOps()
+            .onCreate(b -> shellResponse(SHELL_ID))
+            .onCommand(b -> commandResponse(COMMAND_ID))
+            .nextReceiveThrows(wsmanTimedOutFault())
+            .nextReceive(receiveResponse("done\n", "", true, 0));
+
+        try (WinRSClient w = new WinRSClient(ops, ShellOptions.defaults())) {
+            CommandResult r = w.runCommand("long-running", null, Duration.ofMinutes(2));
+            assertEquals(0, r.exitCode());
+            assertEquals("done\n", r.stdout());
+        }
+
+        assertEquals("Receive must be retried after TimedOut fault", 2, ops.receiveCount);
+    }
+
+    @Test
+    public void receiveLoop_passesShrinkingOperationTimeoutPerCall() {
+        // Three Receives: two still-Running, one Done. With a 30s overall budget and
+        // a 60s ceiling, every per-call OperationTimeout should be at most 30s (no
+        // floor) and values should monotonically decrease as the deadline approaches.
+        FakeOps ops = new FakeOps()
+            .onCreate(b -> shellResponse(SHELL_ID))
+            .onCommand(b -> commandResponse(COMMAND_ID))
+            .nextReceive(receiveResponse("part1", "", false, null))
+            .nextReceive(receiveResponse("part2", "", false, null))
+            .nextReceive(receiveResponse("", "", true, 0));
+
+        try (WinRSClient w = new WinRSClient(ops, ShellOptions.defaults())) {
+            w.runCommand("x", null, Duration.ofSeconds(30));
+        }
+
+        assertEquals(3, ops.receiveOpTimeouts.size());
+        for (Duration d : ops.receiveOpTimeouts) {
+            assertTrue("OperationTimeout must be positive: " + d,
+                d.compareTo(Duration.ZERO) > 0);
+            assertTrue("OperationTimeout above ceiling (60s): " + d,
+                d.compareTo(Duration.ofSeconds(60)) <= 0);
+            assertTrue("OperationTimeout must not exceed caller budget (30s): " + d,
+                d.compareTo(Duration.ofSeconds(30)) <= 0);
+        }
+        // Per-iteration deadline math means successive OperationTimeouts cannot increase.
+        // (Allow equality — three back-to-back Receives may all measure the same remaining
+        // budget at nanosecond precision.)
+        for (int i = 1; i < ops.receiveOpTimeouts.size(); i++) {
+            Duration prev = ops.receiveOpTimeouts.get(i - 1);
+            Duration cur  = ops.receiveOpTimeouts.get(i);
+            assertTrue("OperationTimeout must not increase across Receives (prev=" + prev
+                + ", cur=" + cur + ")", cur.compareTo(prev) <= 0);
+        }
+    }
+
+    @Test
+    public void receiveLoop_subSecondCallerBudget_honoursCallerDeadlineNotServerFloor() {
+        // OpenNMS pollers commonly run with sub-5-second timeouts. The first Receive's
+        // OperationTimeout MUST be bounded by the caller's actual budget — never inflated
+        // to some internal minimum — so a 2s caller doesn't get parked for longer than
+        // 2s on the server side.
+        FakeOps ops = new FakeOps()
+            .onCreate(b -> shellResponse(SHELL_ID))
+            .onCommand(b -> commandResponse(COMMAND_ID))
+            .receiveAlways(receiveResponse("still going", "", false, null));
+
+        Duration callerBudget = Duration.ofSeconds(2);
+        try (WinRSClient w = new WinRSClient(ops, ShellOptions.defaults())) {
+            w.runCommand("slow", null, callerBudget);
+            fail("expected timeout");
+        } catch (WSManException expected) {
+            // ok — caller deadline reached
+        }
+
+        assertTrue("at least one Receive should have been attempted",
+            !ops.receiveOpTimeouts.isEmpty());
+        Duration first = ops.receiveOpTimeouts.get(0);
+        assertTrue("first OperationTimeout (" + first + ") must not exceed caller budget ("
+            + callerBudget + ")", first.compareTo(callerBudget) <= 0);
+        assertTrue("first OperationTimeout (" + first + ") must be positive",
+            first.compareTo(Duration.ZERO) > 0);
+    }
+
+    /** Builds a SoapFault matching the server's {@code wsman:TimedOut} signal. */
+    private static SoapFault wsmanTimedOutFault() {
+        SoapFault f = new SoapFault(
+            "Operation timed out (server held Receive with no output)",
+            new QName("http://www.w3.org/2003/05/soap-envelope", "Receiver"));
+        f.setSubCode(new QName(WSManConstants.XML_NS_DMTF_WSMAN_V1, "TimedOut"));
+        return f;
+    }
+
     // --- fake ShellOperations --------------------------------------------------------
 
     /**
@@ -276,6 +372,8 @@ public class WinRSClientTest {
      */
     private static final class FakeOps implements ShellOperations {
         final List<String> callLog = new ArrayList<>();
+        final List<Duration> receiveOpTimeouts = new ArrayList<>();
+        final List<RuntimeException> receiveErrorQueue = new ArrayList<>();
         Function<Element, Element> createResponder;
         Function<Element, Element> commandResponder;
         final List<Element> receiveQueue = new ArrayList<>();
@@ -295,6 +393,8 @@ public class WinRSClientTest {
         FakeOps nextReceive(Element response) { this.receiveQueue.add(response); return this; }
         FakeOps receiveAlways(Element response) { this.repeatedReceive = response; return this; }
         FakeOps receiveThrows(RuntimeException e) { this.receiveError = e; return this; }
+        /** Queue a one-shot exception for the next Receive (consumed on first call). */
+        FakeOps nextReceiveThrows(RuntimeException e) { this.receiveErrorQueue.add(e); return this; }
         FakeOps deleteThrows(RuntimeException e) { this.deleteError = e; return this; }
 
         @Override
@@ -309,10 +409,12 @@ public class WinRSClientTest {
             return commandResponder.apply(commandBody);
         }
         @Override
-        public Element receive(String shellId, Element receiveBody) {
+        public Element receive(String shellId, Element receiveBody, Duration operationTimeout) {
             callLog.add("receive");
             lastReceiveBody = receiveBody;
+            receiveOpTimeouts.add(operationTimeout);
             receiveCount++;
+            if (!receiveErrorQueue.isEmpty()) throw receiveErrorQueue.remove(0);
             if (receiveError != null) throw receiveError;
             if (!receiveQueue.isEmpty()) return receiveQueue.remove(0);
             if (repeatedReceive != null) return repeatedReceive;
