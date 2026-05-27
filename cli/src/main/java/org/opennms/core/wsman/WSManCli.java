@@ -17,7 +17,9 @@ package org.opennms.core.wsman;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,7 @@ import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.ParserProperties;
 import org.kohsuke.args4j.spi.MapOptionHandler;
 import org.opennms.core.wsman.cxf.CXFWSManClientFactory;
+import org.opennms.core.wsman.shell.CommandResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
@@ -46,7 +49,8 @@ public class WSManCli {
     public enum WSManOperation {
         GET,
         ENUM,
-        IDENTIFY
+        IDENTIFY,
+        SHELL
     }
 
     @Option(name="-r", usage="remote url", metaVar="url", required=true)
@@ -82,6 +86,9 @@ public class WSManCli {
     @Option(name="-s", handler=MapOptionHandler.class)
     private Map<String,String> selectors;
 
+    @Option(name="-timeout", usage="command timeout in seconds (SHELL only)", metaVar="seconds")
+    private int timeoutSeconds = 60;
+
     @Argument
     private List<String> arguments = new ArrayList<>();
 
@@ -97,8 +104,22 @@ public class WSManCli {
 
         CmdLineParser parser = new CmdLineParser(this, parserProperties);
 
+        // args4j doesn't natively treat "--" as an end-of-options sentinel; everything
+        // after it is routed verbatim into `arguments` so users can pass commands whose
+        // own flags would otherwise collide with our options, e.g.
+        //   -o SHELL -- powershell -Command "Get-Service"
+        String[] forParser = args;
+        List<String> trailingArgs = new ArrayList<>();
+        for (int i = 0; i < args.length; i++) {
+            if ("--".equals(args[i])) {
+                forParser = Arrays.copyOfRange(args, 0, i);
+                trailingArgs.addAll(Arrays.asList(args).subList(i + 1, args.length));
+                break;
+            }
+        }
+
         try {
-            parser.parseArgument(args);
+            parser.parseArgument(forParser);
         } catch( CmdLineException e ) {
             System.err.println("java -jar wsman4j.jar [options...] arguments...");
             parser.printUsage(System.err);
@@ -106,6 +127,9 @@ public class WSManCli {
             e.printStackTrace();
             return;
         }
+
+        // Anything after `--` is positional regardless of leading dashes
+        arguments.addAll(trailingArgs);
 
         setupLogging();
 
@@ -159,6 +183,23 @@ public class WSManCli {
             LOG.info("Issuing IDENTIFY");
             Identity identity = client.identify();
             LOG.info("IDENTIFY successful: {}", identity);
+        } else if (operation == WSManOperation.SHELL) {
+            if (arguments.isEmpty()) {
+                LOG.error("SHELL operation requires a command argument, e.g.: -o SHELL -- ipconfig /all");
+                System.exit(2);
+                return;
+            }
+            String executable = arguments.get(0);
+            String[] commandArgs = arguments.size() > 1
+                ? arguments.subList(1, arguments.size()).toArray(new String[0])
+                : new String[0];
+            LOG.info("Running WinRS command '{}' (timeout={}s)", executable, timeoutSeconds);
+            CommandResult result = client.runCommand(executable, commandArgs, Duration.ofSeconds(timeoutSeconds));
+            // Pass stdout/stderr through unmodified so the CLI is usable in shell pipelines.
+            System.out.print(result.stdout());
+            System.err.print(result.stderr());
+            LOG.info("Command exited with code {}", result.exitCode());
+            System.exit(result.exitCode());
         }
     }
 
