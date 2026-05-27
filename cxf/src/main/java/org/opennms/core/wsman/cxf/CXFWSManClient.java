@@ -473,7 +473,23 @@ public class CXFWSManClient implements WSManClient {
         } catch (RuntimeException e) {
             throw wrapException(e);
         } finally {
-            try { ops.getClient().destroy(); } catch (Exception ignored) {}
+            // Mirror destroy(Object): shut the Bus down before destroying the Client so the
+            // Wsdl11AttachmentPolicyProvider's policy cache (held by the Bus) doesn't accumulate
+            // entries across many runCommand invocations.
+            Client client = ops.getClient();
+            if (client != null) {
+                try {
+                    Bus bus = client.getBus();
+                    if (bus != null) bus.shutdown(true);
+                } catch (Exception ex) {
+                    LOG.debug("Error shutting down CXF bus for WinRS client", ex);
+                }
+                try {
+                    client.destroy();
+                } catch (Exception ex) {
+                    LOG.debug("Error destroying WinRS CXF client", ex);
+                }
+            }
         }
     }
 
@@ -487,6 +503,9 @@ public class CXFWSManClient implements WSManClient {
         HTTPConduit http = (HTTPConduit) cxfClient.getConduit();
 
         HTTPClientPolicy httpClientPolicy = new HTTPClientPolicy();
+        // Pin HTTP/1.1 — WinRS rides keep-alive across Create/Command/Receive(×N)/Delete,
+        // and the JVM's HTTP/1.0 default disables keep-alive. Mirrors createProxyFor.
+        httpClientPolicy.setVersion("1.1");
         if (m_endpoint.getConnectionTimeout() != null) {
             httpClientPolicy.setConnectionTimeout(m_endpoint.getConnectionTimeout());
         }
