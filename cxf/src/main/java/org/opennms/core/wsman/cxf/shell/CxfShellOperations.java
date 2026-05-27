@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.Source;
@@ -228,11 +229,22 @@ public class CxfShellOperations implements ShellOperations {
             return owner == null ? null : owner.getDocumentElement();
         }
         // Other Source types (StreamSource, SAXSource) — convert via Transformer.
+        // This branch parses theoretically untrusted server XML, so harden both factories
+        // against XXE / external entity expansion / external resource access.
         try {
             DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
             dbf.setNamespaceAware(true);
+            dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            dbf.setExpandEntityReferences(false);
             DOMResult result = new DOMResult(dbf.newDocumentBuilder().newDocument());
-            TransformerFactory.newInstance().newTransformer().transform(response, result);
+
+            TransformerFactory tf = TransformerFactory.newInstance();
+            tf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            tf.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            tf.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+            tf.newTransformer().transform(response, result);
+
             Document doc = (Document) result.getNode();
             return doc == null ? null : doc.getDocumentElement();
         } catch (Exception e) {

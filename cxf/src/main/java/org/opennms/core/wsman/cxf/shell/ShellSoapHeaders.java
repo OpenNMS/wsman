@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -43,8 +44,16 @@ public final class ShellSoapHeaders {
 
     private static final DocumentBuilderFactory DBF;
     static {
-        DBF = DocumentBuilderFactory.newInstance();
-        DBF.setNamespaceAware(true);
+        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        dbf.setNamespaceAware(true);
+        try {
+            dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        } catch (ParserConfigurationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+        dbf.setExpandEntityReferences(false);
+        DBF = dbf;
     }
 
     private ShellSoapHeaders() {}
