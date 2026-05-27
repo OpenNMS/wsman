@@ -123,18 +123,26 @@ public final class ShellSoapHeaders {
     }
 
     /**
-     * Builds {@code <wsman:OperationTimeout>PT…S</wsman:OperationTimeout>}. Formats the
-     * {@link Duration} as an ISO-8601 duration string with millisecond precision, e.g.
-     * {@code PT60.000S}, which is what pywinrm and the MS-WSMV reference envelopes emit.
+     * Builds {@code <wsman:OperationTimeout>PT…S</wsman:OperationTimeout>}. Uses
+     * {@link #xsdDuration(Duration)} to format the value the way pywinrm and the
+     * MS-WSMV reference envelopes do.
      */
     public static Element operationTimeout(Duration timeout) {
         Document doc = newDocument();
         Element el = doc.createElementNS(WSManConstants.XML_NS_DMTF_WSMAN_V1, "wsman:OperationTimeout");
-        long millis = timeout.toMillis();
-        long whole = millis / 1000;
-        long frac = millis % 1000;
-        el.setTextContent(String.format("PT%d.%03dS", whole, frac));
+        el.setTextContent(xsdDuration(timeout));
         return el;
+    }
+
+    /**
+     * Formats a {@link Duration} as an {@code xs:duration} string with millisecond
+     * precision, e.g. {@code PT60.000S}. Matches pywinrm's wire format and the
+     * MS-WSMV reference envelopes — used by both {@link #operationTimeout(Duration)}
+     * and {@code <rsp:IdleTimeOut>} emission in {@code ShellBodyBuilder}.
+     */
+    static String xsdDuration(Duration d) {
+        long millis = d.toMillis();
+        return String.format("PT%d.%03dS", millis / 1000, millis % 1000);
     }
 
     /**

@@ -32,7 +32,7 @@ public class ShellBodyBuilderTest {
     // --- Create body -----------------------------------------------------------------
 
     @Test
-    public void createBody_defaults_hasInputAndOutputStreamsOnly() {
+    public void createBody_defaults_hasInputOutputStreamsAndDefaultIdleTimeout() {
         Element shell = ShellBodyBuilder.buildCreateBody(ShellOptions.defaults());
 
         assertEquals(NS, shell.getNamespaceURI());
@@ -44,6 +44,33 @@ public class ShellBodyBuilderTest {
             0, shell.getElementsByTagNameNS(NS, "WorkingDirectory").getLength());
         assertEquals("default options have no Environment",
             0, shell.getElementsByTagNameNS(NS, "Environment").getLength());
+        // ShellOptions.defaults() carries a 3-minute idle timeout — assert it's wired
+        // through to the wire so the API contract isn't silently dropped on the floor.
+        assertEquals("PT180.000S", textOfChild(shell, "IdleTimeOut"));
+    }
+
+    @Test
+    public void createBody_withExplicitIdleTimeout_emitsXsdDuration() {
+        ShellOptions opts = new ShellOptions.Builder()
+            .withIdleTimeout(java.time.Duration.ofSeconds(45))
+            .build();
+
+        Element shell = ShellBodyBuilder.buildCreateBody(opts);
+
+        assertEquals("PT45.000S", textOfChild(shell, "IdleTimeOut"));
+    }
+
+    @Test
+    public void createBody_nullIdleTimeout_omitsTheElement() {
+        // Explicitly clearing the idle timeout opts the caller into the server default.
+        ShellOptions opts = new ShellOptions.Builder()
+            .withIdleTimeout(null)
+            .build();
+
+        Element shell = ShellBodyBuilder.buildCreateBody(opts);
+
+        assertEquals("explicit null idleTimeout must omit the element",
+            0, shell.getElementsByTagNameNS(NS, "IdleTimeOut").getLength());
     }
 
     @Test

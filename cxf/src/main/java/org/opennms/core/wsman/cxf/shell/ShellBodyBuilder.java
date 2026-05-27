@@ -47,9 +47,9 @@ public final class ShellBodyBuilder {
      * Body for the {@code Create} action: a {@code <rsp:Shell>} element with the
      * stdin/stdout/stderr stream names, optional working directory and environment.
      *
-     * Shell options (no-profile, code page, idle timeout) are NOT included here —
-     * they go in the {@code <wsman:OptionSet>} SOAP header. See {@link ShellOptions}
-     * and the header interceptor for how those are surfaced.
+     * The no-profile and code-page options go in the {@code <wsman:OptionSet>} SOAP
+     * header (see {@link ShellSoapHeaders#optionSet(ShellOptions)}); the idle timeout
+     * is emitted here as an {@code <rsp:IdleTimeOut>} child of {@code <rsp:Shell>}.
      */
     public static Element buildCreateBody(ShellOptions options) {
         Document doc = newDocument();
@@ -79,6 +79,15 @@ public final class ShellBodyBuilder {
                 env.appendChild(var);
             }
             shell.appendChild(env);
+        }
+
+        // <rsp:IdleTimeOut> caps how long Windows keeps an unused shell alive — useful
+        // for orphan-shell reaping if Delete fails (network blip, JVM crash). Omitted
+        // when explicitly cleared (null) so the caller can opt into the server default.
+        if (options.getIdleTimeout() != null) {
+            Element idle = doc.createElementNS(ShellConstants.NS_SHELL, "rsp:IdleTimeOut");
+            idle.setTextContent(ShellSoapHeaders.xsdDuration(options.getIdleTimeout()));
+            shell.appendChild(idle);
         }
 
         return shell;
