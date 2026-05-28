@@ -1,16 +1,16 @@
-version: 2
+version: 2.1
 
-jobs:
-  build:
+executors:
+  build-executor:
     docker:
       - image: cimg/openjdk:17.0.14
 
-    environment:
-      MAVEN_OPTS: -Xmx1024m
+orbs:
+  branch-management: opennms/branch-management@2.3.0
 
+commands:
+  run-build:
     steps:
-      - checkout
-
       # Download and cache dependencies
       - restore_cache:
           keys:
@@ -44,9 +44,60 @@ jobs:
       - store_artifacts:
           path: cli/target/org.opennms.core.wsman.cli-*.jar
 
+  cached-checkout:
+    steps:
+      # Restore source cache
+      - restore_cache:
+          keys:
+            - source-v1-{{ .Branch }}-{{ .Revision }}
+            - source-v1-{{ .Branch }}-
+            - source-v1-
+
+      - checkout
+
+      # Save source cache
+      - save_cache:
+          key: source-v1-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - ".git"
+
+jobs:
+  build:
+    executor: build-executor
+
+    environment:
+      MAVEN_OPTS: -Xmx1024m
+
+    steps:
+      - cached-checkout
+      - run-build
+
+  merge:
+    executor: build-executor
+    environment:
+      MAVEN_OPTS: -Xmx1024m
+
+    steps:
+      - cached-checkout
+      - branch-management/merge-branch:
+          committer_email: "cicd-system@opennms.com"
+          committer_name: "CI/CD System"
+          from: release-1.x
+          to: master
+      - run-build
+      - run:
+          name: "Push to Main"
+          command: git push --no-verify origin master:master
+
+
 workflows:
-  version: 2
   build-deploy:
     jobs:
       - build
-
+      - merge:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+               - /^release-.*/
