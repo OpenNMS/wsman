@@ -71,15 +71,20 @@
       <artifactId>org.opennms.core.wsman.cxf</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!--
+      CXF 3.5.x is compiled against the javax.xml.* namespace, so the shaded CLI jar
+      must bring in javax-namespace API classes, not jakarta-namespace ones. Pinned at
+      the latest 2.x lines, which is the final release before the Jakarta rename.
+    -->
     <dependency>
-      <groupId>jakarta.xml.bind</groupId>
-      <artifactId>jakarta.xml.bind-api</artifactId>
-      <version>${jaxbVersion}</version>
+      <groupId>javax.xml.bind</groupId>
+      <artifactId>jaxb-api</artifactId>
+      <version>2.3.1</version>
     </dependency>
     <dependency>
-      <groupId>jakarta.xml.ws</groupId>
-      <artifactId>jakarta.xml.ws-api</artifactId>
-      <version>${jaxbVersion}</version>
+      <groupId>javax.xml.ws</groupId>
+      <artifactId>jaxws-api</artifactId>
+      <version>2.3.1</version>
     </dependency>
     <dependency>
       <groupId>javax.activation</groupId>
@@ -104,7 +109,7 @@
     <dependency>
       <groupId>org.opennms.core.wsman</groupId>
       <artifactId>org.opennms.core.wsman.api</artifactId>
-      <version>2.0.0-SNAPSHOT</version>
+      <version>${project.version}</version>
     </dependency>
   </dependencies>
 </project>
