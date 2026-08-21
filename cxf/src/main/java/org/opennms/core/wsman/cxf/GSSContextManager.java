@@ -26,6 +26,8 @@ import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.NameCallback;
 import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.kerberos.KerberosTicket;
+import javax.security.auth.kerberos.KeyTab;
 import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.AppConfigurationEntry.LoginModuleControlFlag;
 import javax.security.auth.login.Configuration;
@@ -319,8 +321,26 @@ public class GSSContextManager implements Closeable {
     }
 
     private void ensureLogin() throws LoginException {
-        if (loggedIn) {
+        if (loggedIn && hasUsableKerberosCredentials(subject, System.currentTimeMillis())) {
             return;
+        }
+        if (loggedIn) {
+            // The TGT expired (or is about to) and the subject has no keytab to acquire
+            // a fresh one on its own. Kerberos TGTs typically live around 10 hours, so a
+            // long-lived busy client must be able to cross that boundary: discard the old
+            // login and run a fresh one.
+            LOG.debug("Kerberos TGT expired or near expiry; re-running JAAS login for {}",
+                username != null ? username : "\"WSManClient\" login config");
+            if (loginContext != null) {
+                try {
+                    loginContext.logout();
+                } catch (LoginException e) {
+                    LOG.debug("JAAS logout of the expired login failed (ignoring)", e);
+                }
+            }
+            loginContext = null;
+            subject = null;
+            loggedIn = false;
         }
         if (username != null && password != null) {
             loginContext = buildPasswordLoginContext();
@@ -333,6 +353,33 @@ public class GSSContextManager implements Closeable {
         loginContext.login();
         subject = loginContext.getSubject();
         loggedIn = true;
+    }
+
+    /** Re-login proactively when the TGT has less than this long left, so a ticket
+     *  cannot expire between the check and the AP-REQ built from it. */
+    static final long TGT_EXPIRY_MARGIN_MS = 60_000;
+
+    /**
+     * Returns true when the subject can still initiate a Kerberos handshake: it holds a
+     * krbtgt ticket that is current and not within {@link #TGT_EXPIRY_MARGIN_MS} of
+     * expiry, or it holds a keytab, from which JGSS acquires fresh tickets on its own
+     * (so an expired TGT does not matter and a re-login would be pointless churn).
+     * Package-visible and clock-parameterized for unit testing.
+     */
+    static boolean hasUsableKerberosCredentials(Subject subject, long nowMillis) {
+        if (subject == null) {
+            return false;
+        }
+        for (KerberosTicket ticket : subject.getPrivateCredentials(KerberosTicket.class)) {
+            if (ticket.getServer() != null
+                    && ticket.getServer().getName().startsWith("krbtgt/")
+                    && ticket.isCurrent()
+                    && ticket.getEndTime() != null
+                    && ticket.getEndTime().getTime() - nowMillis > TGT_EXPIRY_MARGIN_MS) {
+                return true;
+            }
+        }
+        return !subject.getPrivateCredentials(KeyTab.class).isEmpty();
     }
 
     private LoginContext buildPasswordLoginContext() throws LoginException {

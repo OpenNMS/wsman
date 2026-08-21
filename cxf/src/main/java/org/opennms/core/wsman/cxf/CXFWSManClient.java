@@ -342,10 +342,6 @@ public class CXFWSManClient implements WSManClient {
         // policies created by the Wsdl11AttachmentPolicyProvider, which are never removed. If we don't create our own
         // bus, the same instance will be shared across all factories, and the policies will continue to accumulate.
         Bus bus = new ExtensionManagerBus(null, null, Bus.class.getClassLoader());
-        if (m_endpoint.isKerberosEncryption()) {
-            // Must be registered before the conduit is created (below in createProxyFor).
-            installKerberosConduitFactory(bus);
-        }
         factory.setBus(bus);
 
         WSAddressingFeature feature = new WSAddressingFeature();
@@ -359,30 +355,33 @@ public class CXFWSManClient implements WSManClient {
     }
 
     /**
-     * Installs an {@link HTTPConduitFactory} on the bus that builds
-     * {@link KerberosHttpConduit}s backed by this client's shared
-     * {@link KerberosHttpSession}.
+     * Installs an {@link HTTPConduitFactory} that builds {@link KerberosHttpConduit}s
+     * backed by this client's shared {@link KerberosHttpSession}.
      *
      * <p>Kerberos message encryption (MS-WSMV §2.2.9.1) requires every encrypted POST to
      * ride the exact TCP connection on which the AP-REQ/AP-REP handshake bound the
      * Kerberos session. The session owns that connection outright, so the binding holds
-     * regardless of which proxy (or the WinRS shell) issues the request — no reliance on
-     * any JVM-global connection pool handing back the right socket.
+     * regardless of which proxy (or the WinRS shell) issues the request, with no reliance
+     * on any JVM-global connection pool handing back the right socket.
      *
-     * <p>Registered as a per-bus extension — {@code HTTPTransportFactory.findFactory()}
-     * consults {@code bus.getExtension(HTTPConduitFactory.class)} before any global default —
-     * so it never affects other CXF clients in the JVM. Must be called before the conduit is
-     * created (the extension is only read at conduit-creation time).
+     * <p>The factory is scoped to this one endpoint, NOT registered as a bus extension:
+     * {@code HTTPTransportFactory.findFactory()} consults the EndpointInfo property named
+     * {@code HTTPConduitFactory.class.getName()} before falling back to the bus extension.
+     * Scoping matters because the WinRS shell path builds its Dispatch on the JVM's
+     * thread-default bus, which every other CXF client on the thread shares; a bus-level
+     * extension there would hand this host's encrypted conduit to unrelated CXF clients.
+     * Must be called before the conduit is created (the property is only read at
+     * conduit-creation time, i.e. before the first {@code getConduit()} call).
      */
-    private void installKerberosConduitFactory(Bus bus) {
+    private void installKerberosConduitFactory(EndpointInfo endpointInfo) {
         final KerberosHttpSession session = getKerberosSession();
-        bus.setExtension(new HTTPConduitFactory() {
+        endpointInfo.setProperty(HTTPConduitFactory.class.getName(), new HTTPConduitFactory() {
             @Override
             public HTTPConduit createConduit(HTTPTransportFactory factory, Bus b,
                     EndpointInfo localInfo, EndpointReferenceType target) throws IOException {
                 return new KerberosHttpConduit(b, localInfo, target, session);
             }
-        }, HTTPConduitFactory.class);
+        });
     }
 
     /**
@@ -454,6 +453,12 @@ public class CXFWSManClient implements WSManClient {
         nsMap.put("wsman", WSManConstants.XML_NS_DMTF_WSMAN_V1);
         nsMap.put("wsmid", WSManConstants.XML_NS_DMTF_WSMAN_IDENTITY_V1);
         cxfClient.getRequestContext().put("soap.env.ns.map", nsMap);
+
+        // Must run before getConduit() below, which lazily creates the conduit: the
+        // endpoint-scoped factory property is only consulted at conduit-creation time.
+        if (m_endpoint.isKerberosEncryption()) {
+            installKerberosConduitFactory(cxfClient.getEndpoint().getEndpointInfo());
+        }
 
         // Setup timeouts
         HTTPConduit http = (HTTPConduit)cxfClient.getConduit();
@@ -603,12 +608,16 @@ public class CXFWSManClient implements WSManClient {
      * applies to the JAX-WS proxies. JAX-WS-specific things (transform maps, Content-Type
      * action-attribute override) are not applied — they don't apply to {@code Dispatch}.
      */
-    private void configureShellConduit(Client cxfClient) {
-        // Must run before getConduit() below, which lazily creates the conduit: the factory
-        // extension is only consulted at conduit-creation time. The shell shares the same
+    // Package-visible for KerberosConduitScopingTest, which verifies the conduit factory
+    // lands on the shell endpoint's EndpointInfo and never on the shared thread-default bus.
+    void configureShellConduit(Client cxfClient) {
+        // Must run before getConduit() below, which lazily creates the conduit: the
+        // endpoint-scoped factory property is only consulted at conduit-creation time.
+        // Scoped to the EndpointInfo, never the bus: the Dispatch was built on the JVM's
+        // thread-default bus, which unrelated CXF clients share. The shell uses the same
         // KerberosHttpSession as the JAX-WS proxies, so one handshake covers everything.
         if (m_endpoint.isKerberosEncryption()) {
-            installKerberosConduitFactory(cxfClient.getBus());
+            installKerberosConduitFactory(cxfClient.getEndpoint().getEndpointInfo());
         }
         HTTPConduit http = (HTTPConduit) cxfClient.getConduit();
 

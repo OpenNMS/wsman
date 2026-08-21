@@ -11,7 +11,11 @@
   Kerberos session and serialize on it.
 * `WSManClient` now extends `AutoCloseable`. Call `close()` when done with a client to
   release the Kerberos session (connection, GSS context, JAAS login); the default
-  implementation is a no-op for clients without such resources.
+  implementation is a no-op for clients without such resources. As a backstop, a shared
+  background daemon thread reaps idle Kerberos sessions: the connection is closed after
+  60 seconds of inactivity and the GSS context and JAAS login are released after
+  15 minutes, so a client that is never closed does not hold resources forever. A reaped
+  session re-establishes itself transparently on next use.
 
 ### 1.2.1
 

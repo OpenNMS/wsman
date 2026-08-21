@@ -67,7 +67,11 @@ login configuration entry named `WSManClient` (set via
 Windows WinRM expects the 2004/08 WS-Addressing namespace, so use `WSManVersion.WSMAN_1_0`.
 
 All operations on one client share a single Kerberos session; call `close()` (the client
-is `AutoCloseable`) to release the connection, GSS context, and JAAS login.
+is `AutoCloseable`) to release the connection, GSS context, and JAAS login. Sessions that
+are never closed are reaped automatically after sitting idle (the connection after 60
+seconds, everything else after 15 minutes) and re-establish themselves transparently on
+next use, so a forgotten `close()` does not pin resources forever; closing promptly is
+still preferred.
 
 ```java
 WSManEndpoint endpoint = new WSManEndpoint.Builder("http://windows-host:5985/wsman")

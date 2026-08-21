@@ -32,6 +32,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLParameters;
@@ -68,6 +72,15 @@ import org.slf4j.LoggerFactory;
  * the server may already have executed the request, and WS-Man operations (WinRS
  * Command in particular) are not generally idempotent, so a silent resend could
  * execute them twice.
+ *
+ * <p>Idle sessions are reaped by a shared background daemon thread, so a caller that
+ * abandons a client without calling {@link #close()} does not pin resources forever:
+ * the TCP connection is closed once it passes the idle-reuse threshold (it would be
+ * discarded on next use anyway), and after {@link #MAX_IDLE_SESSION_NANOS} of
+ * inactivity the GSS context and JAAS login are released as well and the reaper
+ * cancels itself, leaving the session eligible for garbage collection. A reaped
+ * session remains usable: the next request re-logins and re-handshakes lazily.
+ * {@link #close()} remains the deterministic way to release resources promptly.
  */
 public class KerberosHttpSession implements Closeable {
     private static final Logger LOG = LoggerFactory.getLogger(KerberosHttpSession.class);
@@ -87,6 +100,25 @@ public class KerberosHttpSession implements Closeable {
      *  server may have already closed produces an ambiguous mid-exchange failure that is
      *  not safe to retry, whereas a proactive re-handshake costs one cheap AP-REQ leg. */
     private static final long MAX_IDLE_REUSE_NANOS = TimeUnit.SECONDS.toNanos(60);
+    /** After this much inactivity the reaper releases everything the session holds
+     *  (GSS context, JAAS login) and stops watching it. Long enough that a periodic
+     *  monitoring poll (typically every 5 minutes) keeps its login warm. */
+    static final long MAX_IDLE_SESSION_NANOS = TimeUnit.MINUTES.toNanos(15);
+    /** How often the reaper checks an active session for idleness. */
+    private static final long REAPER_INTERVAL_SECONDS = 30;
+
+    /** Lazily-initialized shared daemon thread that reaps idle sessions. */
+    private static final class ReaperHolder {
+        static final ScheduledExecutorService EXECUTOR =
+            Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r, "wsman-kerberos-session-reaper");
+                    t.setDaemon(true);
+                    return t;
+                }
+            });
+    }
 
     private final String host;
     private final int port;
@@ -103,8 +135,14 @@ public class KerberosHttpSession implements Closeable {
      *  is a reused keep-alive, so a failure while writing (only) is safe to retry. */
     private int exchangesOnConnection;
     /** {@link System#nanoTime()} of the last successful activity on the current
-     *  connection, used for the proactive idle refresh. */
-    private long lastUseNanos;
+     *  connection, used for the proactive idle refresh and by the reaper. Volatile so
+     *  the reaper can pre-check it without taking the session lock. Initialized at
+     *  construction so idle arithmetic is well-defined even if connect() fails before
+     *  ever refreshing it. */
+    private volatile long lastUseNanos = System.nanoTime();
+    /** The reaper's periodic check for this session; null when nothing is scheduled.
+     *  Guarded by {@code this}. */
+    private ScheduledFuture<?> reaperTask;
 
     /**
      * @param url               the WS-Man endpoint
@@ -336,6 +374,9 @@ public class KerberosHttpSession implements Closeable {
      * exchange, mirroring pywinrm's setup) when needed.
      */
     private void ensureSession(int connectTimeout, int receiveTimeout) throws IOException {
+        // From here on the session may hold reapable resources (a connection, and a JAAS
+        // login acquired inside handshake() even when the handshake itself later fails).
+        ensureReaperScheduled();
         if (socket != null && !socket.isClosed() && gss.isEstablished()) {
             long idleNanos = System.nanoTime() - lastUseNanos;
             if (idleNanos < MAX_IDLE_REUSE_NANOS) {
@@ -472,8 +513,61 @@ public class KerberosHttpSession implements Closeable {
     /** Closes the connection and disposes the GSS context and JAAS login. */
     @Override
     public synchronized void close() {
+        cancelReaper();
         invalidateConnection();
         gss.close();
+    }
+
+    /** Schedules the periodic idle check for this session if none is live. Caller holds
+     *  the session lock (all callers are inside synchronized session methods). */
+    private void ensureReaperScheduled() {
+        if (reaperTask == null || reaperTask.isDone()) {
+            reaperTask = ReaperHolder.EXECUTOR.scheduleWithFixedDelay(this::reapIfIdle,
+                REAPER_INTERVAL_SECONDS, REAPER_INTERVAL_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    private synchronized void cancelReaper() {
+        if (reaperTask != null) {
+            reaperTask.cancel(false);
+            reaperTask = null;
+        }
+    }
+
+    /**
+     * Periodic reap: closes the connection once it passes the idle-reuse threshold (past
+     * it, the next request would discard the connection anyway, so keeping it open only
+     * pins a socket), and after {@link #MAX_IDLE_SESSION_NANOS} releases the GSS context
+     * and JAAS login too and cancels itself, so a session whose owner never calls
+     * {@link #close()} holds nothing and becomes garbage-collectable.
+     *
+     * <p>The lock-free pre-check keeps the shared reaper thread from blocking behind an
+     * in-flight exchange in the common active case; when it does take the lock, the idle
+     * times are re-checked under it, so an exchange that completed in between (refreshing
+     * {@code lastUseNanos}) is never reaped.
+     */
+    private void reapIfIdle() {
+        if (System.nanoTime() - lastUseNanos < MAX_IDLE_REUSE_NANOS) {
+            return;
+        }
+        synchronized (this) {
+            long idleNanos = System.nanoTime() - lastUseNanos;
+            if (idleNanos < MAX_IDLE_REUSE_NANOS) {
+                return;
+            }
+            if (socket != null) {
+                LOG.debug("Reaping idle Kerberos session connection to {}:{} ({} ms idle)",
+                    host, port, TimeUnit.NANOSECONDS.toMillis(idleNanos));
+                invalidateConnection();
+            }
+            if (idleNanos >= MAX_IDLE_SESSION_NANOS) {
+                LOG.debug("Releasing idle Kerberos session to {}:{} ({} ms idle): disposing"
+                    + " GSS context and JAAS login", host, port,
+                    TimeUnit.NANOSECONDS.toMillis(idleNanos));
+                gss.close();
+                cancelReaper();
+            }
+        }
     }
 
     // ------------------------------------------------------------------------------
