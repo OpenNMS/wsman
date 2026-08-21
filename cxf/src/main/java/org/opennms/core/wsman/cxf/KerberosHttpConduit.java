@@ -42,8 +42,11 @@ import org.apache.cxf.ws.addressing.EndpointReferenceType;
  * handed back to the in-chain as a plain byte stream. Because the base class's
  * {@code doProcessResponseCode()} still sees the real HTTP status, 401s surface as
  * {@code org.apache.cxf.transport.http.HTTPException} (and therefore as
- * {@code UnauthorizedException} to callers), and 500 fault bodies flow to the SOAP
- * fault chain exactly as they do for the stock conduits.
+ * {@code UnauthorizedException} to callers), and encrypted 500 fault bodies are
+ * decrypted and flow to the SOAP fault chain exactly as they do for the stock
+ * conduits. Cleartext error bodies are unauthenticated and never reach the in-chain:
+ * the session withholds a 401's body and fails hard on any other cleartext response
+ * (see {@link KerberosHttpSession}).
  *
  * <p>Retransmit-related hooks are unsupported: redirects and auth-retry are handled
  * (where meaningful) inside the session, not by CXF's retransmit machinery.

@@ -196,6 +196,59 @@ public class KerberosHttpSessionCodecTest {
         }
     }
 
+    @Test
+    public void oversizedHeaderLine_throws() {
+        StringBuilder sb = new StringBuilder("HTTP/1.1 200 OK\r\nX-Junk: ");
+        for (int i = 0; i < 70 * 1024; i++) {
+            sb.append('a');
+        }
+        sb.append("\r\n\r\n");
+        try {
+            parse(sb.toString());
+            fail("expected IOException");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("line exceeds"));
+        }
+    }
+
+    @Test
+    public void oversizedHeaderBlock_throws() {
+        StringBuilder sb = new StringBuilder("HTTP/1.1 200 OK\r\n");
+        // ~20k headers of ~60 bytes each: every line is within the per-line cap, but the
+        // block blows past the cumulative cap
+        for (int i = 0; i < 20_000; i++) {
+            sb.append("X-Header-").append(i).append(": aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n");
+        }
+        sb.append("\r\n");
+        try {
+            parse(sb.toString());
+            fail("expected IOException");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("headers exceed"));
+        }
+    }
+
+    @Test
+    public void oversizedChunkedTrailers_throw() {
+        StringBuilder sb = new StringBuilder(
+            "HTTP/1.1 200 OK\r\n" +
+            "Transfer-Encoding: chunked\r\n" +
+            "\r\n" +
+            "2\r\n" +
+            "ok\r\n" +
+            "0\r\n");
+        for (int i = 0; i < 40_000; i++) {
+            sb.append("X-Trailer-").append(i).append(": aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n");
+        }
+        sb.append("\r\n");
+        try {
+            parse(sb.toString());
+            fail("expected IOException");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("trailers exceed"));
+        }
+    }
+
     private static RawResponse parse(String raw) throws IOException {
         return KerberosHttpSession.readResponse(
             new ByteArrayInputStream(raw.getBytes(StandardCharsets.ISO_8859_1)));
