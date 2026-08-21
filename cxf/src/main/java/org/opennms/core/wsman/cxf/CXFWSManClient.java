@@ -48,7 +48,6 @@ import org.apache.cxf.service.model.EndpointInfo;
 import org.apache.cxf.transport.http.HTTPConduit;
 import org.apache.cxf.transport.http.HTTPConduitFactory;
 import org.apache.cxf.transport.http.HTTPTransportFactory;
-import org.apache.cxf.transport.http.URLConnectionHTTPConduit;
 import org.apache.cxf.transport.http.auth.DefaultBasicAuthSupplier;
 import org.apache.cxf.transport.http.auth.HttpAuthHeader;
 import org.apache.cxf.transports.http.configuration.HTTPClientPolicy;
@@ -92,6 +91,13 @@ import schemas.dmtf.org.wbem.wsman.v1.MaxEnvelopeSizeType;
 /**
  * A WS-Man client implemented using JAX-WS &amp; CXF.
  *
+ * <p>When Kerberos message encryption (MS-WSMV §2.2.9.1) is enabled on the endpoint,
+ * all operations share a single {@link KerberosHttpSession}: one TCP connection with
+ * one GSS context bound to it, established once and reused. Concurrent operations on
+ * the same client serialize on that connection (a protocol constraint: Windows HTTP.sys
+ * binds the Kerberos session to the connection). Call {@link #close()} when done with
+ * the client to release the connection, the GSS context, and the JAAS login.
+ *
  * @author jwhite
  */
 public class CXFWSManClient implements WSManClient {
@@ -102,6 +108,13 @@ public class CXFWSManClient implements WSManClient {
     private static final schemas.dmtf.org.wbem.wsman.v1.ObjectFactory WSMAN_OBJECT_FACTORY = new schemas.dmtf.org.wbem.wsman.v1.ObjectFactory();
 
     private final WSManEndpoint m_endpoint;
+
+    /**
+     * Shared Kerberos-encryption session (connection + GSS context + JAAS login), created
+     * lazily on the first operation and reused by every proxy and the WinRS shell path.
+     * Guarded by {@code this}.
+     */
+    private KerberosHttpSession m_kerberosSession;
 
     public CXFWSManClient(WSManEndpoint endpoint) {
         m_endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
@@ -331,7 +344,7 @@ public class CXFWSManClient implements WSManClient {
         Bus bus = new ExtensionManagerBus(null, null, Bus.class.getClassLoader());
         if (m_endpoint.isKerberosEncryption()) {
             // Must be registered before the conduit is created (below in createProxyFor).
-            forceURLConnectionConduit(bus);
+            installKerberosConduitFactory(bus);
         }
         factory.setBus(bus);
 
@@ -346,32 +359,80 @@ public class CXFWSManClient implements WSManClient {
     }
 
     /**
-     * Forces CXF to build the legacy {@link URLConnectionHTTPConduit} (backed by
-     * {@link java.net.HttpURLConnection}) for the given bus instead of the
-     * {@code HttpClientHTTPConduit} that became the default in CXF 3.6 on JDK 11+.
+     * Installs an {@link HTTPConduitFactory} on the bus that builds
+     * {@link KerberosHttpConduit}s backed by this client's shared
+     * {@link KerberosHttpSession}.
      *
-     * <p>Kerberos message encryption (MS-WSMV §2.2.9.1) requires the encrypted POST to ride
-     * the exact TCP connection on which the pre-flight AP-REQ/AP-REP handshake bound the
-     * Kerberos session ({@link GSSContextManager#performPreflightHandshake}). The pre-flight
-     * uses {@code HttpURLConnection}, whose JVM keep-alive pool is shared only with
-     * {@code URLConnectionHTTPConduit}. {@code java.net.http.HttpClient} keeps a separate
-     * connection pool, so its POST opens a fresh, session-less connection and Windows
-     * HTTP.sys rejects the encrypted body with HTTP 401. (This worked on CXF 3.5.x, whose
-     * default conduit was {@code URLConnectionHTTPConduit}.)
+     * <p>Kerberos message encryption (MS-WSMV §2.2.9.1) requires every encrypted POST to
+     * ride the exact TCP connection on which the AP-REQ/AP-REP handshake bound the
+     * Kerberos session. The session owns that connection outright, so the binding holds
+     * regardless of which proxy (or the WinRS shell) issues the request — no reliance on
+     * any JVM-global connection pool handing back the right socket.
      *
      * <p>Registered as a per-bus extension — {@code HTTPTransportFactory.findFactory()}
      * consults {@code bus.getExtension(HTTPConduitFactory.class)} before any global default —
      * so it never affects other CXF clients in the JVM. Must be called before the conduit is
      * created (the extension is only read at conduit-creation time).
      */
-    private static void forceURLConnectionConduit(Bus bus) {
+    private void installKerberosConduitFactory(Bus bus) {
+        final KerberosHttpSession session = getKerberosSession();
         bus.setExtension(new HTTPConduitFactory() {
             @Override
             public HTTPConduit createConduit(HTTPTransportFactory factory, Bus b,
                     EndpointInfo localInfo, EndpointReferenceType target) throws IOException {
-                return new URLConnectionHTTPConduit(b, localInfo, target);
+                return new KerberosHttpConduit(b, localInfo, target, session);
             }
         }, HTTPConduitFactory.class);
+    }
+
+    /**
+     * Lazily creates the shared Kerberos session: one JAAS login, one connection, one GSS
+     * context, reused by every operation this client performs.
+     */
+    private synchronized KerberosHttpSession getKerberosSession() {
+        if (m_kerberosSession == null) {
+            LOG.debug("Creating Kerberos message-encryption session (MS-WSMV §2.2.9.1) for {}",
+                    m_endpoint.getUrl());
+            GSSContextManager gss = new GSSContextManager(
+                    m_endpoint.getUrl().getHost(),
+                    m_endpoint.getUsername(),
+                    m_endpoint.getPassword());
+            SSLSocketFactory sslSocketFactory = null;
+            if (!m_endpoint.isStrictSSL()) {
+                sslSocketFactory = buildPermissiveSslSocketFactory();
+            }
+            m_kerberosSession = new KerberosHttpSession(
+                    m_endpoint.getUrl(), gss, sslSocketFactory, m_endpoint.isStrictSSL());
+        }
+        return m_kerberosSession;
+    }
+
+    /**
+     * Releases the Kerberos session (connection, GSS context, JAAS login) if one was
+     * created. Safe to call multiple times; the session is recreated on demand if the
+     * client is used again.
+     */
+    @Override
+    public synchronized void close() {
+        if (m_kerberosSession != null) {
+            m_kerberosSession.close();
+            m_kerberosSession = null;
+        }
+    }
+
+    private static SSLSocketFactory buildPermissiveSslSocketFactory() {
+        TrustManager[] trustAll = new TrustManager[] { new X509TrustManager() {
+            public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+            public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+            public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
+        }};
+        try {
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(null, trustAll, new java.security.SecureRandom());
+            return ctx.getSocketFactory();
+        } catch (java.security.GeneralSecurityException e) {
+            throw new RuntimeException("Failed to build permissive SSLSocketFactory", e);
+        }
     }
 
     /**
@@ -408,11 +469,6 @@ public class CXFWSManClient implements WSManClient {
         httpClientPolicy.setAllowChunking(false);
         http.setClient(httpClientPolicy);
 
-        // Build one permissive SSLSocketFactory and share it between CXF's TLSClientParameters
-        // and the Kerberos pre-flight: the JVM HTTPS keep-alive cache keys connections by
-        // SSLSocketFactory identity, so the pre-flight socket can only be reused by CXF's
-        // encrypted POST when both sides use the exact same factory instance.
-        SSLSocketFactory sharedSslFactory = null;
         if (!m_endpoint.isStrictSSL()) {
             LOG.debug("Disabling strict SSL checking.");
             TrustManager[] trustAll = new TrustManager[] { new X509TrustManager() {
@@ -420,15 +476,8 @@ public class CXFWSManClient implements WSManClient {
                 public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
                 public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
             }};
-            try {
-                SSLContext ctx = SSLContext.getInstance("TLS");
-                ctx.init(null, trustAll, new java.security.SecureRandom());
-                sharedSslFactory = ctx.getSocketFactory();
-            } catch (java.security.GeneralSecurityException e) {
-                throw new RuntimeException("Failed to build permissive SSLSocketFactory", e);
-            }
             TLSClientParameters tlsParams = new TLSClientParameters();
-            tlsParams.setSSLSocketFactory(sharedSslFactory);
+            tlsParams.setSSLSocketFactory(buildPermissiveSslSocketFactory());
             tlsParams.setTrustManagers(trustAll);
             tlsParams.setDisableCNCheck(true);
             http.setTlsClientParameters(tlsParams);
@@ -436,23 +485,10 @@ public class CXFWSManClient implements WSManClient {
 
         // Setup authentication
         if (m_endpoint.isKerberosEncryption()) {
-            // MS-WSMV §2.2.9.1: message-level Kerberos encryption.
-            // Windows HTTP.sys requires the Kerberos AP-REQ/AP-REP handshake to complete
-            // on a bare pre-flight POST before it will accept encrypted bodies. This mirrors
-            // pywinrm's setup_encryption() call. The pre-flight must use the same JVM
-            // HttpURLConnection so the TCP connection is reused by CXF's URLConnectionHTTPConduit.
-            LOG.debug("Enabling Kerberos message encryption (MS-WSMV §2.2.9.1).");
-            GSSContextManager gssManager = new GSSContextManager(
-                m_endpoint.getUrl().getHost(),
-                m_endpoint.getUsername(),
-                m_endpoint.getPassword(),
-                sharedSslFactory);
-            // Pre-flight is deferred to KerberosEncryptOutInterceptor.onClose(), which runs
-            // immediately before target.write() triggers CXF's lazy connectAndGetOutputStream().
-            // Doing it there (not here) ensures the pre-flight socket is in the JVM keep-alive
-            // pool at the exact moment CXF's conduit establishes its TCP connection.
-            cxfClient.getOutInterceptors().add(new KerberosEncryptOutInterceptor(gssManager));
-            cxfClient.getInInterceptors().add(new KerberosDecryptInInterceptor(gssManager));
+            // MS-WSMV §2.2.9.1: message-level Kerberos encryption. Nothing to wire here —
+            // the KerberosHttpConduit installed by installKerberosConduitFactory carries
+            // the handshake, encryption, and TLS on its own session-owned connection.
+            LOG.debug("Kerberos message encryption is handled by the KerberosHttpConduit.");
         } else if (m_endpoint.isGSSAuth()) {
             // See http://cxf.apache.org/docs/client-http-transport-including-ssl-support.html#ClientHTTPTransport(includingSSLsupport)-SpnegoAuthentication(Kerberos)
             LOG.debug("Enabling GSS authentication.");
@@ -499,7 +535,8 @@ public class CXFWSManClient implements WSManClient {
         // Content-Type: application/soap+xml; action="http://schemas.xmlsoap.org/ws/2004/09/enumeration/Enumerate"
         // Windows Server 2008 barfs on the action=".*" attribute and none of the other servers
         // seem to care whether it's there or not, so we remove it.
-        // When Kerberos encryption is active the out-interceptor overwrites Content-Type itself.
+        // When Kerberos encryption is active the session builds the wire headers itself
+        // (multipart/encrypted Content-Type), so the override is unnecessary there.
         if (!m_endpoint.isKerberosEncryption()) {
             Map<String, List<String>> headers = new HashMap<>();
             headers.put(CONTENT_TYPE_HEADER, Collections.singletonList(MEDIA_TYPE_SOAP_UTF8));
@@ -568,9 +605,10 @@ public class CXFWSManClient implements WSManClient {
      */
     private void configureShellConduit(Client cxfClient) {
         // Must run before getConduit() below, which lazily creates the conduit: the factory
-        // extension is only consulted at conduit-creation time.
+        // extension is only consulted at conduit-creation time. The shell shares the same
+        // KerberosHttpSession as the JAX-WS proxies, so one handshake covers everything.
         if (m_endpoint.isKerberosEncryption()) {
-            forceURLConnectionConduit(cxfClient.getBus());
+            installKerberosConduitFactory(cxfClient.getBus());
         }
         HTTPConduit http = (HTTPConduit) cxfClient.getConduit();
 
@@ -587,45 +625,24 @@ public class CXFWSManClient implements WSManClient {
         httpClientPolicy.setAllowChunking(false);
         http.setClient(httpClientPolicy);
 
-        // Build one permissive SSLSocketFactory and share it with the Kerberos pre-flight,
-        // for the same reason as createProxyFor: the JVM HTTPS keep-alive cache keys
-        // connections by SSLSocketFactory identity, so the pre-flight socket can only be
-        // reused by CXF's encrypted POST when both sides use the same factory instance.
-        SSLSocketFactory sharedSslFactory = null;
         if (!m_endpoint.isStrictSSL()) {
             TrustManager[] trustAll = new TrustManager[] { new X509TrustManager() {
                 public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
                 public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
                 public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
             }};
-            try {
-                SSLContext ctx = SSLContext.getInstance("TLS");
-                ctx.init(null, trustAll, new java.security.SecureRandom());
-                sharedSslFactory = ctx.getSocketFactory();
-            } catch (java.security.GeneralSecurityException e) {
-                throw new RuntimeException("Failed to build permissive SSLSocketFactory", e);
-            }
             TLSClientParameters tlsParams = new TLSClientParameters();
-            tlsParams.setSSLSocketFactory(sharedSslFactory);
+            tlsParams.setSSLSocketFactory(buildPermissiveSslSocketFactory());
             tlsParams.setTrustManagers(trustAll);
             tlsParams.setDisableCNCheck(true);
             http.setTlsClientParameters(tlsParams);
         }
 
         if (m_endpoint.isKerberosEncryption()) {
-            // MS-WSMV §2.2.9.1: message-level Kerberos encryption. Mirrors the wiring in
-            // createProxyFor — the WinRS shell rides the same CXF Dispatch chain, so it
-            // needs the same encrypt/decrypt interceptors. Without this branch the shell
-            // path falls through to plain SPNEGO auth and sends a cleartext SOAP body,
-            // which a server expecting encryption rejects with an empty HTTP 500.
-            LOG.debug("Enabling Kerberos message encryption for WinRS shell (MS-WSMV §2.2.9.1).");
-            GSSContextManager gssManager = new GSSContextManager(
-                m_endpoint.getUrl().getHost(),
-                m_endpoint.getUsername(),
-                m_endpoint.getPassword(),
-                sharedSslFactory);
-            cxfClient.getOutInterceptors().add(new KerberosEncryptOutInterceptor(gssManager));
-            cxfClient.getInInterceptors().add(new KerberosDecryptInInterceptor(gssManager));
+            // MS-WSMV §2.2.9.1: handled entirely by the KerberosHttpConduit installed
+            // above; the shell shares the client's session, so its Create/Command/
+            // Receive/Delete requests ride the same established connection.
+            LOG.debug("Kerberos message encryption for WinRS shell is handled by the KerberosHttpConduit.");
         } else if (m_endpoint.isGSSAuth()) {
             http.getAuthorization().setAuthorizationType(HttpAuthHeader.AUTH_TYPE_NEGOTIATE);
             http.getAuthorization().setAuthorization("WSManClient");

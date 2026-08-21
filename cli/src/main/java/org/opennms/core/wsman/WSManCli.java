@@ -161,7 +161,15 @@ public class WSManCli {
         WSManEndpoint endpoint = builder.build();
         LOG.info("Using endpoint: {}", endpoint);
         WSManClient client = clientFactory.getClient(endpoint);
+        try {
+            runOperation(client);
+        } finally {
+            // Release any long-lived transport resources (e.g. the Kerberos-encrypted session)
+            client.close();
+        }
+    }
 
+    private void runOperation(WSManClient client) {
         if (operation == WSManOperation.ENUM) {
             List<Node> nodes = new LinkedList<>();
             if (arguments.isEmpty()) {
@@ -207,6 +215,8 @@ public class WSManCli {
             System.out.print(result.stdout());
             System.err.print(result.stderr());
             LOG.info("Command exited with code {}", result.exitCode());
+            // Close before exiting so the transport session is torn down cleanly
+            client.close();
             System.exit(result.exitCode());
         }
     }

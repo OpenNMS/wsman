@@ -15,18 +15,13 @@
  */
 package org.opennms.core.wsman.cxf;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLSocketFactory;
 import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.NameCallback;
@@ -47,11 +42,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Manages a Kerberos GSS-API security context for a single WS-Man endpoint and provides
- * the wrap/unwrap operations used by the Kerberos encryption interceptors to implement
- * MS-WSMV §2.2.9.1 KerberosEncryptedMessage.
+ * Manages the Kerberos GSS-API security material for a single WS-Man endpoint: the JAAS
+ * {@link Subject} (acquired once and reused across connections, so reconnects need a new
+ * AP-REQ but not a new AS-REQ), the per-connection {@link GSSContext}, and the
+ * wrap/unwrap operations used to implement MS-WSMV §2.2.9.1 KerberosEncryptedMessage.
+ *
+ * <p>The HTTP transport (socket ownership, the Negotiate handshake exchange, and the
+ * multipart/encrypted framing) lives in {@link KerberosHttpSession}; this class only
+ * produces and consumes GSS tokens.
+ *
+ * <p>Because Windows HTTP.sys binds a Kerberos session to a single TCP connection, a
+ * context established over one connection is useless on another. {@link #newHandshake()}
+ * must be called each time the transport opens a fresh connection, and it disposes any
+ * prior context.
  */
-public class GSSContextManager {
+public class GSSContextManager implements Closeable {
     private static final Logger LOG = LoggerFactory.getLogger(GSSContextManager.class);
 
     private static final Oid KERBEROS_OID;
@@ -79,80 +84,182 @@ public class GSSContextManager {
     private final String host;
     private final String username;
     private final String password;
-    private final SSLSocketFactory sslSocketFactory;
 
-    private GSSContext context;
+    private LoginContext loginContext;
     private Subject subject;
+    private boolean loggedIn;
+    private GSSContext context;
 
-    /**
-     * @param sslSocketFactory the {@link SSLSocketFactory} the HTTPS pre-flight should use,
-     *   or {@code null} to use the JVM default. When the WS-Man endpoint runs over HTTPS
-     *   with permissive cert validation, this MUST be the same instance CXF's
-     *   {@code TLSClientParameters} is using — the JVM's HTTPS keep-alive cache keys
-     *   connections by SSLSocketFactory identity, so a different instance would force CXF
-     *   to open a fresh (unauthenticated) TCP connection for the encrypted body.
-     */
-    public GSSContextManager(String host, String username, String password,
-                             SSLSocketFactory sslSocketFactory) {
+    public GSSContextManager(String host, String username, String password) {
         this.host = host;
         this.username = username;
         this.password = password;
-        this.sslSocketFactory = sslSocketFactory;
     }
 
     /**
-     * Returns the outbound Kerberos token (raw bytes, not Base64-encoded) to place
-     * in the {@code Authorization: Negotiate} header, or {@code null} if the context
-     * is already established and no further token is required.
-     *
-     * Pass {@code null} on the first call. Pass the server's decoded token bytes
-     * (from {@code WWW-Authenticate: Negotiate}) if the server sends one back.
+     * Discards any existing context and creates a fresh one for a new TCP connection.
+     * The JAAS login (and therefore the TGT) is reused across handshakes; only the
+     * AP-REQ/AP-REP exchange is redone.
      */
-    public synchronized byte[] getOutboundToken(byte[] incomingServerToken) throws GSSException, LoginException {
-        ensureContext();
-        if (context.isEstablished()) {
-            return null;
-        }
-        byte[] tokenIn = incomingServerToken != null ? incomingServerToken : new byte[0];
-        try {
-            byte[] token = initSecContext(tokenIn);
-            return (token != null && token.length > 0) ? token : null;
-        } catch (PrivilegedActionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof GSSException) throw (GSSException) cause;
-            throw new RuntimeException("GSS initSecContext failed", cause);
+    public synchronized void newHandshake() throws GSSException, LoginException {
+        disposeContext();
+        ensureLogin();
+
+        GSSManager manager = GSSManager.getInstance();
+        // SPNEGO OID so initSecContext produces a NegTokenInit wrapping the Kerberos AP-REQ
+        // — what WinRM HTTP.sys expects. wrap()/unwrap() still produce raw RFC 4121 wrap
+        // tokens regardless of the outer OID.
+        final GSSName serverName = manager.createName("http@" + host, GSSName.NT_HOSTBASED_SERVICE, KERBEROS_OID);
+        final GSSManager mgr = manager;
+
+        PrivilegedExceptionAction<GSSContext> createContext = () -> {
+            GSSContext ctx = mgr.createContext(serverName, SPNEGO_OID, null, GSSContext.DEFAULT_LIFETIME);
+            // Windows HTTP.sys requires mutual auth to complete the AP-REQ/AP-REP
+            // handshake before it will accept encrypted message bodies.
+            ctx.requestMutualAuth(true);
+            ctx.requestConf(true);
+            ctx.requestInteg(true);
+            // Defaults, but make the intent explicit: the per-message replay/reorder
+            // flags checked in unwrap() depend on these being negotiated.
+            ctx.requestReplayDet(true);
+            ctx.requestSequenceDet(true);
+            return ctx;
+        };
+
+        if (subject != null) {
+            try {
+                context = Subject.doAs(subject, createContext);
+            } catch (PrivilegedActionException e) {
+                throw unwrapGSS(e, "Failed to create GSS context");
+            }
+        } else {
+            try {
+                context = createContext.run();
+            } catch (GSSException | RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to create GSS context", e);
+            }
         }
     }
 
-    /** Encrypts {@code data} using GSS wrap with confidentiality enabled. */
+    /**
+     * Advances the handshake: feeds the server's token (or an empty token for the initial
+     * AP-REQ) into {@code initSecContext} and returns the next token to send, or
+     * {@code null} when there is nothing further to send.
+     */
+    public synchronized byte[] nextToken(byte[] incomingServerToken) throws GSSException {
+        if (context == null) {
+            throw new IllegalStateException("newHandshake() must be called before nextToken()");
+        }
+        final byte[] tokenIn = incomingServerToken != null ? incomingServerToken : new byte[0];
+        byte[] token;
+        if (subject != null) {
+            try {
+                token = Subject.doAs(subject, (PrivilegedExceptionAction<byte[]>) () ->
+                    context.initSecContext(tokenIn, 0, tokenIn.length));
+            } catch (PrivilegedActionException e) {
+                throw unwrapGSS(e, "GSS initSecContext failed");
+            }
+        } else {
+            token = context.initSecContext(tokenIn, 0, tokenIn.length);
+        }
+        return (token != null && token.length > 0) ? token : null;
+    }
+
+    public synchronized boolean isEstablished() {
+        return context != null && context.isEstablished();
+    }
+
+    /**
+     * Verifies that the established context actually negotiated the protections we
+     * requested. MS-WSMV §2.2.9.1 encryption is meaningless over a context that only
+     * provides integrity (or neither), so a failed negotiation is a hard error, not
+     * something to discover one message at a time.
+     */
+    public synchronized void verifyNegotiatedProtections() throws GSSException {
+        if (context == null || !context.isEstablished()) {
+            throw new GSSException(GSSException.NO_CONTEXT, -1, "GSS context is not established");
+        }
+        if (!context.getConfState()) {
+            throw new GSSException(GSSException.UNAVAILABLE, -1,
+                "Kerberos context did not negotiate confidentiality; refusing to send encrypted messages");
+        }
+        if (!context.getIntegState()) {
+            throw new GSSException(GSSException.UNAVAILABLE, -1,
+                "Kerberos context did not negotiate integrity; refusing to send encrypted messages");
+        }
+        if (!context.getMutualAuthState()) {
+            throw new GSSException(GSSException.UNAVAILABLE, -1,
+                "Kerberos mutual authentication did not complete; refusing to send encrypted messages");
+        }
+        if (!context.getReplayDetState()) {
+            LOG.warn("Kerberos context did not negotiate replay detection; " +
+                "per-message duplicate/old-token checks will not fire");
+        }
+    }
+
+    /**
+     * Encrypts {@code data} using GSS wrap and verifies that confidentiality was
+     * actually applied to the token (an integrity-only wrap must not be sent as an
+     * "encrypted" message).
+     */
     public synchronized byte[] wrap(byte[] data) throws GSSException {
         MessageProp prop = new MessageProp(0, true);
+        byte[] token = doWrap(data, prop);
+        if (!prop.getPrivacy()) {
+            throw new GSSException(GSSException.UNAVAILABLE, -1,
+                "GSS wrap did not apply confidentiality; refusing to send the message as encrypted");
+        }
+        return token;
+    }
+
+    /**
+     * Decrypts {@code data} using GSS unwrap and enforces the per-message security
+     * state: the token must have been confidential (not integrity-only), and replayed
+     * or expired tokens are rejected. Out-of-sequence and gap indications are logged
+     * rather than fatal — HTTP request/response framing already orders messages, and
+     * benign pipelining differences would otherwise break the session.
+     */
+    public synchronized byte[] unwrap(byte[] data) throws GSSException {
+        MessageProp prop = new MessageProp(0, false);
+        byte[] plaintext = doUnwrap(data, prop);
+        if (!prop.getPrivacy()) {
+            throw new GSSException(GSSException.BAD_MIC, -1,
+                "Received a token without confidentiality on an encrypted session; rejecting");
+        }
+        if (prop.isDuplicateToken() || prop.isOldToken()) {
+            throw new GSSException(GSSException.DUPLICATE_TOKEN, -1,
+                "Received a duplicate or expired GSS token (possible replay); rejecting");
+        }
+        if (prop.isUnseqToken() || prop.isGapToken()) {
+            LOG.warn("GSS unwrap reported an out-of-sequence or gap token (unseq={}, gap={})",
+                prop.isUnseqToken(), prop.isGapToken());
+        }
+        return plaintext;
+    }
+
+    private byte[] doWrap(byte[] data, MessageProp prop) throws GSSException {
         if (subject != null) {
             try {
                 final byte[] d = data;
                 return Subject.doAs(subject, (PrivilegedExceptionAction<byte[]>) () ->
                     context.wrap(d, 0, d.length, prop));
             } catch (PrivilegedActionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof GSSException) throw (GSSException) cause;
-                throw new RuntimeException("GSS wrap failed", cause);
+                throw unwrapGSS(e, "GSS wrap failed");
             }
         }
         return context.wrap(data, 0, data.length, prop);
     }
 
-    /** Decrypts {@code data} using GSS unwrap. */
-    public synchronized byte[] unwrap(byte[] data) throws GSSException {
-        MessageProp prop = new MessageProp(0, false);
+    private byte[] doUnwrap(byte[] data, MessageProp prop) throws GSSException {
         if (subject != null) {
             try {
                 final byte[] d = data;
                 return Subject.doAs(subject, (PrivilegedExceptionAction<byte[]>) () ->
                     context.unwrap(d, 0, d.length, prop));
             } catch (PrivilegedActionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof GSSException) throw (GSSException) cause;
-                throw new RuntimeException("GSS unwrap failed", cause);
+                throw unwrapGSS(e, "GSS unwrap failed");
             }
         }
         return context.unwrap(data, 0, data.length, prop);
@@ -184,72 +291,88 @@ public class GSSContextManager {
         return unwrap(fromWinRMFormat(winrmBytes));
     }
 
-    public synchronized boolean isEstablished() {
-        return context != null && context.isEstablished();
+    /**
+     * Disposes the GSS context and logs out the JAAS session. Safe to call multiple times.
+     */
+    @Override
+    public synchronized void close() {
+        disposeContext();
+        if (loginContext != null && loggedIn) {
+            try {
+                loginContext.logout();
+            } catch (LoginException e) {
+                LOG.debug("JAAS logout failed (ignoring)", e);
+            }
+        }
+        loginContext = null;
+        subject = null;
+        loggedIn = false;
     }
 
-    /**
-     * Performs the Kerberos AP-REQ/AP-REP pre-flight against the WinRM endpoint.
-     *
-     * Windows HTTP.sys binds the Kerberos session to the TCP connection: once the
-     * mutual-auth handshake completes on a bare POST, all subsequent encrypted bodies on
-     * the same connection are decrypted with that session's key. The response body must
-     * be fully drained (not just {@code getErrorStream()}) so the JVM returns the socket
-     * to the keep-alive pool, and {@code disconnect()} must NOT be called — otherwise
-     * CXF opens a fresh unauthenticated connection for the encrypted POST and gets 401.
-     * Mirrors pywinrm's {@code setup_encryption()}.
-     */
-    public synchronized void performPreflightHandshake(String urlStr) throws GSSException, LoginException, IOException {
-        ensureContext();
-        if (context.isEstablished()) {
+    private void disposeContext() {
+        if (context != null) {
+            try {
+                context.dispose();
+            } catch (GSSException ignored) {}
+            context = null;
+        }
+    }
+
+    private void ensureLogin() throws LoginException {
+        if (loggedIn) {
             return;
         }
-
-        byte[] apReqToken = getOutboundToken(null);
-        if (apReqToken == null) {
-            return;
-        }
-        LOG.debug("Pre-flight: sending AP-REQ token ({} bytes) to {}", apReqToken.length, urlStr);
-
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        // Use the caller-supplied SSLSocketFactory (typically the same permissive one CXF's
-        // TLSClientParameters has, for strictSSL=false setups). This is required so the JVM
-        // HTTPS keep-alive cache, which keys on SSLSocketFactory identity, can reuse this
-        // pre-flight socket for CXF's encrypted POST. Hostname verification is also relaxed
-        // when a non-default factory is in use, mirroring CXF's disableCNCheck behavior.
-        if (sslSocketFactory != null && conn instanceof HttpsURLConnection) {
-            HttpsURLConnection https = (HttpsURLConnection) conn;
-            https.setSSLSocketFactory(sslSocketFactory);
-            https.setHostnameVerifier((hostname, session) -> true);
-        }
-        conn.setRequestMethod("POST");
-        conn.setDoOutput(true);
-        conn.setInstanceFollowRedirects(false);
-        conn.setRequestProperty("Authorization", "Negotiate " + Base64.getEncoder().encodeToString(apReqToken));
-        conn.setRequestProperty("Content-Type", "application/soap+xml;charset=UTF-8");
-        conn.setRequestProperty("Content-Length", "0");
-        conn.getOutputStream().close();
-
-        int responseCode = conn.getResponseCode();
-        String wwwAuth = conn.getHeaderField("WWW-Authenticate");
-
-        try {
-            InputStream body = responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
-            if (body != null) {
-                byte[] buf = new byte[4096];
-                while (body.read(buf) >= 0) { /* drain */ }
-                body.close();
-            }
-        } catch (IOException ignored) {}
-
-        if (wwwAuth != null && wwwAuth.startsWith("Negotiate ")) {
-            byte[] serverToken = Base64.getDecoder().decode(wwwAuth.substring("Negotiate ".length()).trim());
-            getOutboundToken(serverToken);
-            LOG.debug("Pre-flight: GSS context established={}", context.isEstablished());
+        if (username != null && password != null) {
+            loginContext = buildPasswordLoginContext();
         } else {
-            LOG.warn("Pre-flight: no Negotiate token in response (code={}, WWW-Authenticate={})", responseCode, wwwAuth);
+            // Mirror the -gssAuth convention: use the "WSManClient" JAAS login context,
+            // which is read from java.security.auth.login.config. This is the same name
+            // CXF's SpnegoAuthSupplier uses when setAuthorization("WSManClient") is called.
+            loginContext = new LoginContext("WSManClient");
         }
+        loginContext.login();
+        subject = loginContext.getSubject();
+        loggedIn = true;
+    }
+
+    private LoginContext buildPasswordLoginContext() throws LoginException {
+        Subject sub = new Subject();
+        final String user = username;
+        final char[] pass = password.toCharArray();
+        return new LoginContext("", sub,
+            callbacks -> {
+                for (Callback cb : callbacks) {
+                    if (cb instanceof NameCallback) {
+                        ((NameCallback) cb).setName(user);
+                    } else if (cb instanceof PasswordCallback) {
+                        ((PasswordCallback) cb).setPassword(pass);
+                    }
+                }
+            },
+            new Configuration() {
+                @Override
+                public AppConfigurationEntry[] getAppConfigurationEntry(String name) {
+                    Map<String, Object> opts = new HashMap<>();
+                    opts.put("useKeyTab", "false");
+                    opts.put("doNotPrompt", "false");
+                    opts.put("isInitiator", "true");
+                    opts.put("principal", user);
+                    return new AppConfigurationEntry[]{
+                        new AppConfigurationEntry(
+                            "com.sun.security.auth.module.Krb5LoginModule",
+                            LoginModuleControlFlag.REQUIRED,
+                            opts)
+                    };
+                }
+            });
+    }
+
+    private static GSSException unwrapGSS(PrivilegedActionException e, String message) {
+        Throwable cause = e.getCause();
+        if (cause instanceof GSSException) {
+            return (GSSException) cause;
+        }
+        throw new RuntimeException(message, cause);
     }
 
     /**
@@ -263,7 +386,7 @@ public class GSSContextManager {
      * The WinRM length prefix is the SSPI security-trailer length (60 bytes for AES256),
      * so the wire is {@code [4B LE 60][60B signature][N ciphertext]}.
      */
-    private static byte[] toWinRMFormat(byte[] wrapToken, int plaintextLen) throws GSSException {
+    static byte[] toWinRMFormat(byte[] wrapToken, int plaintextLen) throws GSSException {
         int expected = plaintextLen + SSPI_HEADER_LEN_AES256;
         if (wrapToken.length != expected) {
             throw new GSSException(GSSException.DEFECTIVE_TOKEN, -1,
@@ -291,7 +414,7 @@ public class GSSContextManager {
      * per RFC 4121) to recover Java's expected layout, and zeros the RRC field so Java's
      * {@code unwrap()} doesn't try to rotate again.
      */
-    private static byte[] fromWinRMFormat(byte[] winrmBytes) throws IOException {
+    static byte[] fromWinRMFormat(byte[] winrmBytes) throws IOException {
         if (winrmBytes.length < 4) {
             throw new IOException("WinRM encrypted section too short: " + winrmBytes.length);
         }
@@ -321,108 +444,5 @@ public class GSSContextManager {
             System.arraycopy(winrmBytes, 4 + 16, wrapToken, 16, dataLen);
         }
         return wrapToken;
-    }
-
-    private void ensureContext() throws GSSException, LoginException {
-        if (context != null && context.isEstablished() && context.getLifetime() > 60) {
-            return;
-        }
-        if (context != null && !context.isEstablished()) {
-            // Handshake in progress — preserve the context so the pre-flight can advance it.
-            return;
-        }
-        if (context != null) {
-            try { context.dispose(); } catch (GSSException ignored) {}
-            context = null;
-        }
-
-        if (username != null && password != null) {
-            subject = acquireSubjectWithPassword();
-        } else {
-            // Mirror the -gssAuth convention: use the "WSManClient" JAAS login context,
-            // which is read from java.security.auth.login.config. This is the same name
-            // CXF's SpnegoAuthSupplier uses when setAuthorization("WSManClient") is called.
-            subject = acquireSubjectFromLoginConfig("WSManClient");
-        }
-
-        GSSManager manager = GSSManager.getInstance();
-        // SPNEGO OID so initSecContext produces a NegTokenInit wrapping the Kerberos AP-REQ
-        // — what WinRM HTTP.sys expects. wrap()/unwrap() still produce raw RFC 4121 wrap
-        // tokens regardless of the outer OID.
-        GSSName serverName = manager.createName("http@" + host, GSSName.NT_HOSTBASED_SERVICE, KERBEROS_OID);
-
-        if (subject != null) {
-            try {
-                final GSSManager mgr = manager;
-                final GSSName srv = serverName;
-                context = Subject.doAs(subject, (PrivilegedExceptionAction<GSSContext>) () -> {
-                    GSSContext ctx = mgr.createContext(srv, SPNEGO_OID, null, GSSContext.DEFAULT_LIFETIME);
-                    // Windows HTTP.sys requires mutual auth to complete the AP-REQ/AP-REP
-                    // pre-flight before it will accept encrypted message bodies.
-                    ctx.requestMutualAuth(true);
-                    ctx.requestConf(true);
-                    ctx.requestInteg(true);
-                    return ctx;
-                });
-            } catch (PrivilegedActionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof GSSException) throw (GSSException) cause;
-                throw new RuntimeException("Failed to create GSS context", cause);
-            }
-        } else {
-            context = manager.createContext(serverName, SPNEGO_OID, null, GSSContext.DEFAULT_LIFETIME);
-            context.requestMutualAuth(true);
-            context.requestConf(true);
-            context.requestInteg(true);
-        }
-    }
-
-    private byte[] initSecContext(byte[] tokenIn) throws GSSException, PrivilegedActionException {
-        if (subject != null) {
-            final byte[] t = tokenIn;
-            return Subject.doAs(subject, (PrivilegedExceptionAction<byte[]>) () ->
-                context.initSecContext(t, 0, t.length));
-        }
-        return context.initSecContext(tokenIn, 0, tokenIn.length);
-    }
-
-    private static Subject acquireSubjectFromLoginConfig(String loginContextName) throws LoginException {
-        LoginContext lc = new LoginContext(loginContextName);
-        lc.login();
-        return lc.getSubject();
-    }
-
-    private Subject acquireSubjectWithPassword() throws LoginException {
-        Subject sub = new Subject();
-        final String user = username;
-        final char[] pass = password.toCharArray();
-        LoginContext lc = new LoginContext("", sub,
-            callbacks -> {
-                for (Callback cb : callbacks) {
-                    if (cb instanceof NameCallback) {
-                        ((NameCallback) cb).setName(user);
-                    } else if (cb instanceof PasswordCallback) {
-                        ((PasswordCallback) cb).setPassword(pass);
-                    }
-                }
-            },
-            new Configuration() {
-                @Override
-                public AppConfigurationEntry[] getAppConfigurationEntry(String name) {
-                    Map<String, Object> opts = new HashMap<>();
-                    opts.put("useKeyTab", "false");
-                    opts.put("doNotPrompt", "false");
-                    opts.put("isInitiator", "true");
-                    opts.put("principal", user);
-                    return new AppConfigurationEntry[]{
-                        new AppConfigurationEntry(
-                            "com.sun.security.auth.module.Krb5LoginModule",
-                            LoginModuleControlFlag.REQUIRED,
-                            opts)
-                    };
-                }
-            });
-        lc.login();
-        return lc.getSubject();
     }
 }
