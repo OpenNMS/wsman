@@ -161,15 +161,22 @@ public class WSManCli {
         WSManEndpoint endpoint = builder.build();
         LOG.info("Using endpoint: {}", endpoint);
         WSManClient client = clientFactory.getClient(endpoint);
+        int exitCode;
         try {
-            runOperation(client);
+            exitCode = runOperation(client);
         } finally {
             // Release any long-lived transport resources (e.g. the Kerberos-encrypted session)
+            // before the exit below; System.exit() would skip a finally block, so it must
+            // only be called after this one has run.
             client.close();
         }
+        System.exit(exitCode);
     }
 
-    private void runOperation(WSManClient client) {
+    /** Runs the requested operation and returns the process exit code (for SHELL, the
+     *  remote command's own exit code). Never calls {@code System.exit()} itself, so the
+     *  caller's finally block can release the client first. */
+    private int runOperation(WSManClient client) {
         if (operation == WSManOperation.ENUM) {
             List<Node> nodes = new LinkedList<>();
             if (arguments.isEmpty()) {
@@ -202,8 +209,7 @@ public class WSManCli {
         } else if (operation == WSManOperation.SHELL) {
             if (arguments.isEmpty()) {
                 LOG.error("SHELL operation requires a command argument, e.g.: -o SHELL -- ipconfig /all");
-                System.exit(2);
-                return;
+                return 2;
             }
             String executable = arguments.get(0);
             String[] commandArgs = arguments.size() > 1
@@ -215,10 +221,9 @@ public class WSManCli {
             System.out.print(result.stdout());
             System.err.print(result.stderr());
             LOG.info("Command exited with code {}", result.exitCode());
-            // Close before exiting so the transport session is torn down cleanly
-            client.close();
-            System.exit(result.exitCode());
+            return result.exitCode();
         }
+        return 0;
     }
 
     private void setupLogging() {

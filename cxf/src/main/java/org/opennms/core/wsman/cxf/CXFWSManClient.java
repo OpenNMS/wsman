@@ -107,6 +107,20 @@ public class CXFWSManClient implements WSManClient {
     private static final org.apache.cxf.ws.addressing.ObjectFactory WSA_OBJECT_FACTORY = new org.apache.cxf.ws.addressing.ObjectFactory();
     private static final schemas.dmtf.org.wbem.wsman.v1.ObjectFactory WSMAN_OBJECT_FACTORY = new schemas.dmtf.org.wbem.wsman.v1.ObjectFactory();
 
+    /**
+     * Trust-all manager used when strict SSL checking is disabled, shared by every site
+     * that needs it. For CXF conduits it is passed via
+     * {@code TLSClientParameters.setTrustManagers}; deliberately no
+     * {@code setSSLSocketFactory} alongside it, because an explicit socket factory makes
+     * CXF ignore the trust managers entirely and forces the legacy HttpURLConnection
+     * conduit in place of the Java 11+ HttpClient conduit.
+     */
+    private static final TrustManager[] TRUST_ALL_MANAGERS = new TrustManager[] { new X509TrustManager() {
+        public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+        public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+        public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
+    }};
+
     private final WSManEndpoint m_endpoint;
 
     /**
@@ -419,15 +433,15 @@ public class CXFWSManClient implements WSManClient {
         }
     }
 
+    /**
+     * Builds the trust-all socket factory used by the Kerberos session's own transport
+     * (which does not go through CXF's TLS machinery). Never hand this to
+     * {@code TLSClientParameters}: see {@link #TRUST_ALL_MANAGERS}.
+     */
     private static SSLSocketFactory buildPermissiveSslSocketFactory() {
-        TrustManager[] trustAll = new TrustManager[] { new X509TrustManager() {
-            public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
-            public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
-            public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
-        }};
         try {
             SSLContext ctx = SSLContext.getInstance("TLS");
-            ctx.init(null, trustAll, new java.security.SecureRandom());
+            ctx.init(null, TRUST_ALL_MANAGERS, new java.security.SecureRandom());
             return ctx.getSocketFactory();
         } catch (java.security.GeneralSecurityException e) {
             throw new RuntimeException("Failed to build permissive SSLSocketFactory", e);
@@ -476,14 +490,8 @@ public class CXFWSManClient implements WSManClient {
 
         if (!m_endpoint.isStrictSSL()) {
             LOG.debug("Disabling strict SSL checking.");
-            TrustManager[] trustAll = new TrustManager[] { new X509TrustManager() {
-                public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
-                public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
-                public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
-            }};
             TLSClientParameters tlsParams = new TLSClientParameters();
-            tlsParams.setSSLSocketFactory(buildPermissiveSslSocketFactory());
-            tlsParams.setTrustManagers(trustAll);
+            tlsParams.setTrustManagers(TRUST_ALL_MANAGERS);
             tlsParams.setDisableCNCheck(true);
             http.setTlsClientParameters(tlsParams);
         }
@@ -635,14 +643,8 @@ public class CXFWSManClient implements WSManClient {
         http.setClient(httpClientPolicy);
 
         if (!m_endpoint.isStrictSSL()) {
-            TrustManager[] trustAll = new TrustManager[] { new X509TrustManager() {
-                public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
-                public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
-                public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
-            }};
             TLSClientParameters tlsParams = new TLSClientParameters();
-            tlsParams.setSSLSocketFactory(buildPermissiveSslSocketFactory());
-            tlsParams.setTrustManagers(trustAll);
+            tlsParams.setTrustManagers(TRUST_ALL_MANAGERS);
             tlsParams.setDisableCNCheck(true);
             http.setTlsClientParameters(tlsParams);
         }
