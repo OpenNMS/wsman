@@ -35,6 +35,19 @@ echo "Pushing commits and tags to remote..."
 git push
 git push --tags
 
+# 4b. Create GitHub release and attach the CLI jar
+CLI_JAR="cli/target/org.opennms.core.wsman.cli-${RELEASE_VERSION}.jar"
+if command -v gh >/dev/null 2>&1; then
+  if [ -f "$CLI_JAR" ]; then
+    echo "Creating GitHub release v$RELEASE_VERSION and uploading $CLI_JAR..."
+    gh release create "v$RELEASE_VERSION" "$CLI_JAR" --title "v$RELEASE_VERSION" --generate-notes --verify-tag --latest=false
+  else
+    echo "Warning: $CLI_JAR not found, skipping GitHub release asset upload." >&2
+  fi
+else
+  echo "Warning: gh CLI not found, skipping GitHub release creation." >&2
+fi
+
 # 5. Bump to next snapshot
 echo "Bumping to next snapshot version $NEXT_SNAPSHOT_VERSION..."
 mvn versions:set -DnewVersion="$NEXT_SNAPSHOT_VERSION"
@@ -45,3 +58,6 @@ git push
 echo
 echo "Release $RELEASE_VERSION completed successfully."
 echo "Now on snapshot version: $NEXT_SNAPSHOT_VERSION"
+
+echo "Next steps:"
+echo "The GitHub release has been created but haven't been set to latest."
