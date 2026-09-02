@@ -72,14 +72,21 @@
       <version>${project.version}</version>
     </dependency>
     <!--
-      CXF 3.5.x is compiled against the javax.xml.* namespace, so the shaded CLI jar
-      must bring in javax-namespace API classes, not jakarta-namespace ones. Pinned at
-      the latest 2.x lines, which is the final release before the Jakarta rename.
+      Java 11+ removed the Java EE APIs that were bundled with JDK 8. The WSDL/XSD-generated
+      sources and CXF use the old javax.* namespaces (JAXB 2.x, JAX-WS 2.x), so we include the
+      standalone API jars (pinned at the final releases before the Jakarta rename) to make
+      those classes available in the shaded executable jar. jaxws-api transitively brings in
+      javax.xml.soap (SAAJ) and javax.annotation as well.
     -->
     <dependency>
       <groupId>javax.xml.bind</groupId>
       <artifactId>jaxb-api</artifactId>
       <version>2.3.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.glassfish.jaxb</groupId>
+      <artifactId>jaxb-runtime</artifactId>
+      <version>2.3.9</version>
     </dependency>
     <dependency>
       <groupId>javax.xml.ws</groupId>
