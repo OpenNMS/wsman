@@ -30,9 +30,14 @@ import org.w3c.dom.Node;
  *   * Get (DSP8035)
  *   * Identify (DSP0226)
  *
+ * <p>Clients may hold long-lived resources (e.g. a Kerberos-encrypted transport
+ * session): call {@link #close()} when done with a client instance. The default
+ * implementation is a no-op, so implementations without such resources need not
+ * override it.
+ *
  * @author jwhite
  */
-public interface WSManClient {
+public interface WSManClient extends AutoCloseable {
 
     /**
      * Discovers the capabilities and version information of the remote service.
@@ -137,5 +142,14 @@ public interface WSManClient {
      */
     public default CommandResult runCommand(String executable, String[] args, Duration timeout) {
         return runCommand(executable, args, timeout, ShellOptions.defaults());
+    }
+
+    /**
+     * Releases any long-lived resources held by this client (connections, security
+     * contexts). Safe to call multiple times. No-op by default.
+     */
+    @Override
+    public default void close() {
+        // no resources by default
     }
 }

@@ -34,6 +34,7 @@ public class WSManEndpoint {
     private final String username;
     private final String password;
     private final boolean gssAuth;
+    private final boolean kerberosEncryption;
     private final boolean strictSSL;
     private final WSManVersion serverVersion;
     private final Integer maxElements;
@@ -46,6 +47,7 @@ public class WSManEndpoint {
         username = builder.username;
         password = builder.password;
         gssAuth = builder.gssAuth;
+        kerberosEncryption = builder.kerberosEncryption;
         strictSSL = builder.strictSSL;
         serverVersion = builder.serverVersion;
         maxElements = builder.maxElements;
@@ -60,6 +62,7 @@ public class WSManEndpoint {
        private String username;
        private String password;
        private boolean gssAuth = false;
+       private boolean kerberosEncryption = false;
        private WSManVersion serverVersion = WSManVersion.WSMAN_1_2;
        private Integer maxElements;
        private Integer maxEnvelopeSize;
@@ -81,6 +84,12 @@ public class WSManEndpoint {
        }
 
        public Builder withGSSAuth() {
+           gssAuth = true;
+           return this;
+       }
+
+       public Builder withKerberosEncryption() {
+           kerberosEncryption = true;
            gssAuth = true;
            return this;
        }
@@ -152,6 +161,10 @@ public class WSManEndpoint {
         return gssAuth;
     }
 
+    public boolean isKerberosEncryption() {
+        return kerberosEncryption;
+    }
+
     public boolean isStrictSSL() {
         return strictSSL;
     }
@@ -177,10 +190,10 @@ public class WSManEndpoint {
     }
 
     public String toString() {
-        return String.format("WSManEndpoint[url='%s', isGSSAuth='%s', isBasicAuth='%s', isStrictSSL='%s', "
+        return String.format("WSManEndpoint[url='%s', isGSSAuth='%s', isKerberosEncryption='%s', isBasicAuth='%s', isStrictSSL='%s', "
                 + "serverVersion='%s',  maxElements='%s', maxEnvelopeSize='%s'"
                 + "connectionTimeout='%s', receiveTimeout='%s']",
-                url, isGSSAuth(), isBasicAuth(), isStrictSSL(), serverVersion,
+                url, isGSSAuth(), isKerberosEncryption(), isBasicAuth(), isStrictSSL(), serverVersion,
                 maxElements, maxEnvelopeSize, connectionTimeout, receiveTimeout);
     }
 }
