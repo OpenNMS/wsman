@@ -46,6 +46,8 @@ import org.apache.cxf.ws.addressing.WSAddressingFeature;
 import org.apache.cxf.ws.addressing.soap.VersionTransformer;
 import org.opennms.core.wsman.shell.ShellOptions;
 import org.w3c.dom.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
@@ -65,6 +67,7 @@ import org.w3c.dom.Node;
  * produced by {@link ShellBodyBuilder}.
  */
 public class CxfShellOperations implements ShellOperations {
+    private static final Logger LOG = LoggerFactory.getLogger(CxfShellOperations.class);
 
     private static final QName SHELL_SERVICE_QNAME = new QName(ShellConstants.NS_SHELL, "ShellService");
     private static final QName SHELL_PORT_QNAME    = new QName(ShellConstants.NS_SHELL, "ShellPort");
@@ -235,14 +238,19 @@ public class CxfShellOperations implements ShellOperations {
             DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
             dbf.setNamespaceAware(true);
             dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            trySetFeature(dbf, "http://apache.org/xml/features/disallow-doctype-decl", true);
             dbf.setExpandEntityReferences(false);
             DOMResult result = new DOMResult(dbf.newDocumentBuilder().newDocument());
 
             TransformerFactory tf = TransformerFactory.newInstance();
             tf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            tf.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            tf.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+            // The JAXP 1.5 access-restriction attributes are not understood by every
+            // TransformerFactory that can win the JAXP lookup (Xalan 2.7.x, which OpenNMS
+            // ships in its classpath, rejects them with IllegalArgumentException). They are
+            // belt-and-braces on top of FEATURE_SECURE_PROCESSING, so apply them when the
+            // implementation supports them and carry on when it does not.
+            trySetAttribute(tf, XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            trySetAttribute(tf, XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
             tf.newTransformer().transform(response, result);
 
             Document doc = (Document) result.getNode();
@@ -252,4 +260,24 @@ public class CxfShellOperations implements ShellOperations {
         }
     }
 
+
+    /** Sets an optional JAXP attribute, ignoring implementations that do not support it. */
+    static void trySetAttribute(TransformerFactory tf, String name, Object value) {
+        try {
+            tf.setAttribute(name, value);
+        } catch (IllegalArgumentException e) {
+            LOG.debug("TransformerFactory {} does not support attribute {}; continuing without it",
+                tf.getClass().getName(), name);
+        }
+    }
+
+    /** Sets an optional parser feature, ignoring implementations that do not support it. */
+    static void trySetFeature(DocumentBuilderFactory dbf, String name, boolean value) {
+        try {
+            dbf.setFeature(name, value);
+        } catch (javax.xml.parsers.ParserConfigurationException e) {
+            LOG.debug("DocumentBuilderFactory {} does not support feature {}; continuing without it",
+                dbf.getClass().getName(), name);
+        }
+    }
 }
