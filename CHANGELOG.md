@@ -1,4 +1,4 @@
-### 1.3.4 (unreleased)
+### 1.3.4
 
 * Added support for WinRS shell command execution (MS-WSMV): `WSManClient.runCommand()`
   runs a single command on a short-lived remote shell and captures exit code, stdout,
