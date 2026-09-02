@@ -218,7 +218,9 @@ public class CxfShellOperations implements ShellOperations {
      * {@link Element}. Returns {@code null} if the body is empty (e.g. for {@code Delete}
      * or {@code SignalResponse} when the server omits a body).
      */
-    private static Element responseToElement(Source response) {
+    // Package-visible for CxfShellOperationsTest, which exercises the Source-to-DOM conversion
+    // against TransformerFactory implementations that reject the JAXP 1.5 attributes.
+    static Element responseToElement(Source response) {
         if (response == null) return null;
         if (response instanceof DOMSource) {
             Node node = ((DOMSource) response).getNode();
