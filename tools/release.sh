@@ -40,7 +40,7 @@ echo "Bumping to next snapshot version $NEXT_SNAPSHOT_VERSION..."
 mvn versions:set -DnewVersion="$NEXT_SNAPSHOT_VERSION"
 mvn versions:commit
 
-git commit -am "Start $NEXT_SNAPSHOT_VERSION"
+git commit -am "$RELEASE_VERSION -> $NEXT_SNAPSHOT_VERSION"
 git push
 echo
 echo "Release $RELEASE_VERSION completed successfully."
