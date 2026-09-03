@@ -22,8 +22,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.net.MalformedURLException;
 
-import org.apache.cxf.Bus;
-import org.apache.cxf.BusFactory;
 import org.apache.cxf.transport.http.HTTPConduitFactory;
 import org.junit.Test;
 import org.opennms.core.wsman.WSManEndpoint;
@@ -50,7 +48,7 @@ import org.opennms.core.wsman.cxf.shell.CxfShellOperations;
 public class KerberosConduitScopingTest {
 
     @Test
-    public void shellConduitFactory_isEndpointScoped_notOnThreadDefaultBus() throws MalformedURLException {
+    public void shellConduitFactory_isEndpointScoped_andEachShellGetsItsOwnBus() throws MalformedURLException {
         WSManEndpoint endpoint = new WSManEndpoint.Builder("http://kerberos-target.example.com:5985/wsman")
                 .withKerberosEncryption()
                 .build();
@@ -58,13 +56,13 @@ public class KerberosConduitScopingTest {
         CxfShellOperations shellOps = new CxfShellOperations(endpoint.getUrl().toExternalForm());
         CxfShellOperations unrelated = new CxfShellOperations("http://unrelated.example.com:5985/other");
         try {
-            // Each shell Dispatch lives on its own private bus: not the thread-default
-            // bus, and not shared with any other CxfShellOperations instance. This is
-            // what keeps runCommand()'s bus.shutdown(true) from reaching other CXF
-            // endpoints in the JVM.
-            Bus threadDefaultBus = BusFactory.getThreadDefaultBus();
-            assertNotSame("CxfShellOperations must not build its Dispatch on the"
-                    + " thread-default bus", threadDefaultBus, shellOps.getClient().getBus());
+            // Each CxfShellOperations builds its Dispatch on its own private bus, never a
+            // bus shared with another instance. (Bus-vs-default-bus isolation, the actual
+            // OpenNMS regression, is asserted directly in CxfShellOperationsBusTest; here
+            // we only need the buses to be distinct so the conduit-scoping checks below
+            // are meaningful. Deliberately not compared against getThreadDefaultBus(): a
+            // freshly created bus may itself become the JVM's lazily-resolved default, so
+            // that comparison is test-ordering dependent.)
             assertNotSame("each CxfShellOperations must get its own bus",
                     shellOps.getClient().getBus(), unrelated.getClient().getBus());
 
@@ -74,11 +72,12 @@ public class KerberosConduitScopingTest {
             assertTrue("shell endpoint should get a KerberosHttpConduit",
                     shellOps.getClient().getConduit() instanceof KerberosHttpConduit);
 
-            // ...but no bus carries a trace of it (the factory is endpoint-scoped)...
-            assertNull("thread-default bus must not carry the Kerberos conduit factory",
-                    threadDefaultBus.getExtension(HTTPConduitFactory.class));
-            assertNull("even the shell's own bus must not carry the Kerberos conduit factory",
+            // ...but no bus carries a trace of it (the factory is endpoint-scoped, so it
+            // cannot leak to other clients that happen to share a bus)...
+            assertNull("the shell's own bus must not carry the Kerberos conduit factory",
                     shellOps.getClient().getBus().getExtension(HTTPConduitFactory.class));
+            assertNull("the unrelated client's bus must not carry the Kerberos conduit factory",
+                    unrelated.getClient().getBus().getExtension(HTTPConduitFactory.class));
 
             // ...so an unrelated CXF client still gets a stock conduit.
             assertFalse("unrelated client must not inherit the Kerberos conduit",
