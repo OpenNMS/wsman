@@ -16,8 +16,8 @@
 package org.opennms.core.wsman.cxf;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.net.MalformedURLException;
@@ -30,13 +30,19 @@ import org.opennms.core.wsman.WSManEndpoint;
 import org.opennms.core.wsman.cxf.shell.CxfShellOperations;
 
 /**
- * Regression test for the Kerberos conduit-factory scoping: the WinRS shell path builds
- * its Dispatch via {@code Service.create(...)}, which resolves to the JVM's thread-default
- * bus, shared with every other CXF client on the thread. The factory that produces
- * {@link KerberosHttpConduit}s must therefore be installed as an EndpointInfo property
- * (consulted first by {@code HTTPTransportFactory.findFactory()}), never as a bus
- * extension: a bus-level registration would permanently hand this WS-Man host's encrypted
- * conduit, and its session-bound socket, to unrelated CXF clients in the JVM.
+ * Regression test for the Kerberos conduit-factory scoping. Two isolation mechanisms
+ * hold at once:
+ * <ul>
+ *   <li>{@link CxfShellOperations} builds its Dispatch on a private Bus (never the
+ *       JVM-wide thread-default bus), so the per-command bus shutdown in
+ *       {@code CXFWSManClient.runCommand()} cannot tear down unrelated CXF endpoints
+ *       in an embedding application.</li>
+ *   <li>The factory that produces {@link KerberosHttpConduit}s is installed as an
+ *       EndpointInfo property (consulted first by
+ *       {@code HTTPTransportFactory.findFactory()}), never as a bus extension, so even
+ *       clients that do share a bus can never inherit this WS-Man host's encrypted
+ *       conduit and its session-bound socket.</li>
+ * </ul>
  *
  * <p>Everything here is offline: conduit creation constructs objects but opens no
  * connection, and the Kerberos session performs no login or handshake until first use.
@@ -52,12 +58,15 @@ public class KerberosConduitScopingTest {
         CxfShellOperations shellOps = new CxfShellOperations(endpoint.getUrl().toExternalForm());
         CxfShellOperations unrelated = new CxfShellOperations("http://unrelated.example.com:5985/other");
         try {
-            // Premise of the finding: the shell Dispatch really does live on the JVM's
-            // thread-default bus. If a CXF upgrade changes this, the scoping requirement
-            // needs re-evaluation, so fail loudly here.
+            // Each shell Dispatch lives on its own private bus: not the thread-default
+            // bus, and not shared with any other CxfShellOperations instance. This is
+            // what keeps runCommand()'s bus.shutdown(true) from reaching other CXF
+            // endpoints in the JVM.
             Bus threadDefaultBus = BusFactory.getThreadDefaultBus();
-            assertSame("CxfShellOperations is expected to build its Dispatch on the"
+            assertNotSame("CxfShellOperations must not build its Dispatch on the"
                     + " thread-default bus", threadDefaultBus, shellOps.getClient().getBus());
+            assertNotSame("each CxfShellOperations must get its own bus",
+                    shellOps.getClient().getBus(), unrelated.getClient().getBus());
 
             client.configureShellConduit(shellOps.getClient());
 
@@ -65,18 +74,22 @@ public class KerberosConduitScopingTest {
             assertTrue("shell endpoint should get a KerberosHttpConduit",
                     shellOps.getClient().getConduit() instanceof KerberosHttpConduit);
 
-            // ...but the shared bus carries no trace of it...
+            // ...but no bus carries a trace of it (the factory is endpoint-scoped)...
             assertNull("thread-default bus must not carry the Kerberos conduit factory",
                     threadDefaultBus.getExtension(HTTPConduitFactory.class));
+            assertNull("even the shell's own bus must not carry the Kerberos conduit factory",
+                    shellOps.getClient().getBus().getExtension(HTTPConduitFactory.class));
 
-            // ...so an unrelated CXF client on the same bus still gets a stock conduit.
+            // ...so an unrelated CXF client still gets a stock conduit.
             assertFalse("unrelated client must not inherit the Kerberos conduit",
                     unrelated.getClient().getConduit() instanceof KerberosHttpConduit);
         } finally {
             try {
+                unrelated.getClient().getBus().shutdown(true);
                 unrelated.getClient().destroy();
             } catch (Exception ignored) {}
             try {
+                shellOps.getClient().getBus().shutdown(true);
                 shellOps.getClient().destroy();
             } catch (Exception ignored) {}
             client.close();

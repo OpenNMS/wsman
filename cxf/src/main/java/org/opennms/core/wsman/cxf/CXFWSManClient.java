@@ -592,7 +592,9 @@ public class CXFWSManClient implements WSManClient {
         } finally {
             // Mirror destroy(Object): shut the Bus down before destroying the Client so the
             // Wsdl11AttachmentPolicyProvider's policy cache (held by the Bus) doesn't accumulate
-            // entries across many runCommand invocations.
+            // entries across many runCommand invocations. This is the shell's own private Bus
+            // (see the CxfShellOperations constructor), never the JVM-wide default bus, so the
+            // shutdown cannot affect other CXF endpoints in an embedding application.
             Client client = ops.getClient();
             if (client != null) {
                 try {

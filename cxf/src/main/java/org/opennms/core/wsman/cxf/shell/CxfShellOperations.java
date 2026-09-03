@@ -35,6 +35,9 @@ import javax.xml.ws.Service;
 import javax.xml.ws.WebServiceFeature;
 import javax.xml.ws.soap.SOAPBinding;
 
+import org.apache.cxf.Bus;
+import org.apache.cxf.BusFactory;
+import org.apache.cxf.bus.extension.ExtensionManagerBus;
 import org.apache.cxf.endpoint.Client;
 import org.apache.cxf.headers.Header;
 import org.apache.cxf.jaxws.DispatchImpl;
@@ -84,16 +87,33 @@ public class CxfShellOperations implements ShellOperations {
 
     public CxfShellOperations(String endpointUrl) {
         this.endpointUrl = endpointUrl;
-        Service service = Service.create(SHELL_SERVICE_QNAME);
-        service.addPort(SHELL_PORT_QNAME, SOAPBinding.SOAP12HTTP_BINDING, endpointUrl);
-        // Enable WS-Addressing so the MAPCodec is installed in the outbound interceptor
-        // chain — without it the wsa:Action / wsa:To / wsa:MessageID headers we set via
-        // AddressingProperties aren't emitted and the WinRM server rejects the request
-        // with "the request does not have all the expected SOAP headers".
-        WebServiceFeature addressing = new WSAddressingFeature();
-        this.dispatch = service.createDispatch(
-            SHELL_PORT_QNAME, Source.class, Service.Mode.PAYLOAD, addressing);
-        this.client = ((DispatchImpl<Source>) dispatch).getClient();
+        // Build the Dispatch on a private Bus. Service.create() binds the service to the
+        // thread-default bus, which in an embedding application (e.g. OpenNMS) is the
+        // JVM-wide default bus shared with every other CXF endpoint in the process; the
+        // bus.shutdown(true) that CXFWSManClient.runCommand() performs after each command
+        // would tear all of those down with it. A private bus scopes both the dispatch
+        // and its shutdown to this shell, mirroring the private ExtensionManagerBus the
+        // JAX-WS proxies get in CXFWSManClient.createFactoryFor().
+        Bus bus = new ExtensionManagerBus(null, null, Bus.class.getClassLoader());
+        Bus previousThreadBus = BusFactory.getAndSetThreadDefaultBus(bus);
+        try {
+            Service service = Service.create(SHELL_SERVICE_QNAME);
+            service.addPort(SHELL_PORT_QNAME, SOAPBinding.SOAP12HTTP_BINDING, endpointUrl);
+            // Enable WS-Addressing so the MAPCodec is installed in the outbound interceptor
+            // chain; without it the wsa:Action / wsa:To / wsa:MessageID headers we set via
+            // AddressingProperties aren't emitted and the WinRM server rejects the request
+            // with "the request does not have all the expected SOAP headers".
+            WebServiceFeature addressing = new WSAddressingFeature();
+            this.dispatch = service.createDispatch(
+                SHELL_PORT_QNAME, Source.class, Service.Mode.PAYLOAD, addressing);
+            this.client = ((DispatchImpl<Source>) dispatch).getClient();
+        } catch (RuntimeException | Error e) {
+            // Construction failed after the bus was created; don't leak its threads.
+            bus.shutdown(true);
+            throw e;
+        } finally {
+            BusFactory.setThreadDefaultBus(previousThreadBus);
+        }
     }
 
     /**
