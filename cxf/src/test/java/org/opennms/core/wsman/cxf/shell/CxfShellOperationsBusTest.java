@@ -62,4 +62,34 @@ public class CxfShellOperationsBusTest {
         assertFalse("shutting down the shell's bus must not shut down the default bus",
             defaultBusShutdown.get());
     }
+
+    /**
+     * The guard branch that matters when the shell is the first CXF user in the JVM: with
+     * no default bus present, {@code new ExtensionManagerBus(...)} would register itself as
+     * the JVM default, and the per-command {@code bus.shutdown(true)} would then shut down
+     * the default bus for whatever CXF endpoint comes along next. The constructor must
+     * leave the shell's private bus out of the default-bus slot.
+     */
+    @Test
+    public void shellConstructedWithNoDefaultBus_doesNotBecomeTheDefaultBus() {
+        Bus previousDefault = BusFactory.getDefaultBus(false);
+        Bus previousThread = BusFactory.getThreadDefaultBus(false);
+        // Simulate a pristine JVM: no default bus, no thread-default bus.
+        BusFactory.setDefaultBus(null);
+        BusFactory.setThreadDefaultBus(null);
+        try {
+            CxfShellOperations ops = new CxfShellOperations("http://shell-bus-test.invalid:5985/wsman");
+            Bus shellBus = ops.getClient().getBus();
+
+            Bus defaultAfter = BusFactory.getDefaultBus(false);
+            assertNotSame("the shell's private bus must not have been left as the JVM default bus",
+                shellBus, defaultAfter);
+
+            ops.getClient().getBus().shutdown(true);
+        } finally {
+            // Restore whatever the surrounding test run had in place.
+            BusFactory.setDefaultBus(previousDefault);
+            BusFactory.setThreadDefaultBus(previousThread);
+        }
+    }
 }

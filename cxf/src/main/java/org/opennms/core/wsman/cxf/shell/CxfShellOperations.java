@@ -94,7 +94,13 @@ public class CxfShellOperations implements ShellOperations {
         // would tear all of those down with it. A private bus scopes both the dispatch
         // and its shutdown to this shell, mirroring the private ExtensionManagerBus the
         // JAX-WS proxies get in CXFWSManClient.createFactoryFor().
+        // ExtensionManagerBus registers itself as the JVM default bus when none exists yet;
+        // this bus is private to the shell and must never be handed out as the default.
+        boolean hadDefaultBus = BusFactory.getDefaultBus(false) != null;
         Bus bus = new ExtensionManagerBus(null, null, Bus.class.getClassLoader());
+        if (!hadDefaultBus && BusFactory.getDefaultBus(false) == bus) {
+            BusFactory.setDefaultBus(null);
+        }
         Bus previousThreadBus = BusFactory.getAndSetThreadDefaultBus(bus);
         try {
             Service service = Service.create(SHELL_SERVICE_QNAME);
