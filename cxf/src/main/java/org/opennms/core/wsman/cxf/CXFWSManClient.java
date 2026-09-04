@@ -33,6 +33,7 @@ import javax.xml.namespace.QName;
 import javax.xml.ws.BindingProvider;
 
 import org.apache.cxf.Bus;
+import org.apache.cxf.BusFactory;
 import org.apache.cxf.binding.soap.SoapBindingConstants;
 import org.apache.cxf.bus.extension.ExtensionManagerBus;
 import org.apache.cxf.configuration.jsse.TLSClientParameters;
@@ -355,7 +356,7 @@ public class CXFWSManClient implements WSManClient {
         // This is necessary since the bus holds a reference to the org.apache.cxf.ws.policy.PolicyRegistryImpl, which contains
         // policies created by the Wsdl11AttachmentPolicyProvider, which are never removed. If we don't create our own
         // bus, the same instance will be shared across all factories, and the policies will continue to accumulate.
-        Bus bus = new ExtensionManagerBus(null, null, Bus.class.getClassLoader());
+        Bus bus = newPrivateBus();
         factory.setBus(bus);
 
         WSAddressingFeature feature = new WSAddressingFeature();
@@ -366,6 +367,25 @@ public class CXFWSManClient implements WSManClient {
         // R13.1-1: A service shall at least receive and send SOAP 1.2 SOAP Envelopes.
         factory.setBindingId(SoapBindingConstants.SOAP12_BINDING_ID);
         return factory;
+    }
+
+    /**
+     * Creates a fresh {@link ExtensionManagerBus} that is private to a single factory or
+     * shell and safe to {@code shutdown(true)} on its own. An {@code ExtensionManagerBus}
+     * registers itself as the JVM default bus when none exists yet; because this client
+     * shuts these buses down per operation, one that had become the default would take
+     * an embedding application's shared bus (e.g. the OpenNMS SpringBus) down with it. If
+     * this construction created the default bus, reset it so the private bus never leaks
+     * into the default-bus slot. (CxfShellOperations applies the same guard for its own
+     * Dispatch bus.)
+     */
+    static Bus newPrivateBus() {
+        boolean hadDefaultBus = BusFactory.getDefaultBus(false) != null;
+        Bus bus = new ExtensionManagerBus(null, null, Bus.class.getClassLoader());
+        if (!hadDefaultBus && BusFactory.getDefaultBus(false) == bus) {
+            BusFactory.setDefaultBus(null);
+        }
+        return bus;
     }
 
     /**
@@ -592,7 +612,9 @@ public class CXFWSManClient implements WSManClient {
         } finally {
             // Mirror destroy(Object): shut the Bus down before destroying the Client so the
             // Wsdl11AttachmentPolicyProvider's policy cache (held by the Bus) doesn't accumulate
-            // entries across many runCommand invocations.
+            // entries across many runCommand invocations. This is the shell's own private Bus
+            // (see the CxfShellOperations constructor), never the JVM-wide default bus, so the
+            // shutdown cannot affect other CXF endpoints in an embedding application.
             Client client = ops.getClient();
             if (client != null) {
                 try {
